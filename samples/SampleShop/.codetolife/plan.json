@@ -1,0 +1,38 @@
+{
+  "types": [
+    {
+      "id": "plan:SampleShop.Services.LoyaltyPointsRule",
+      "name": "LoyaltyPointsRule",
+      "namespace": "SampleShop.Services",
+      "kind": "class",
+      "members": [
+        {
+          "name": "Apply",
+          "kind": "method",
+          "signature": "decimal Apply(Order order, decimal runningTotal)"
+        },
+        {
+          "name": "Name",
+          "kind": "property",
+          "signature": "string Name { get; }"
+        }
+      ],
+      "note": "Gives members points they can spend later."
+    }
+  ],
+  "edges": [
+    {
+      "source": "SampleShop.Services.PricingEngine",
+      "target": "plan:SampleShop.Services.LoyaltyPointsRule",
+      "kind": "calls",
+      "note": null
+    },
+    {
+      "source": "plan:SampleShop.Services.LoyaltyPointsRule",
+      "target": "SampleShop.Services.IPricingRule",
+      "kind": "implements",
+      "note": null
+    }
+  ],
+  "notes": []
+}

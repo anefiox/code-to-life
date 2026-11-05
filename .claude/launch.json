@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "codetolife-sample",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["src/CodeToLife/bin/Debug/net10.0/codetolife.dll", "samples/SampleShop", "--port", "5180", "--no-browser"],
+      "port": 5180
+    }
+  ]
+}

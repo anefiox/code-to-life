@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>codetolife</AssemblyName>
+    <RootNamespace>CodeToLife</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>codetolife</ToolCommandName>
+    <PackageId>CodeToLife</PackageId>
+    <Version>0.1.0</Version>
+    <Description>See a C# codebase as a living map of its classes, and watch it run under a debugger.</Description>
+  </PropertyGroup>
+
+  <!--
+    PR Buddy (https://github.com/anefiox/pr-buddy) powers the "What changed" overlay. It's picked
+    up automatically when cloned next to this repo; point PrBuddyPath elsewhere if it lives
+    somewhere else. Without it, everything else still works.
+  -->
+  <PropertyGroup>
+    <PrBuddyPath Condition="'$(PrBuddyPath)' == ''">$(MSBuildThisFileDirectory)..\..\..\pr-buddy</PrBuddyPath>
+    <PrBuddyCore>$(PrBuddyPath)\src\PrBuddy.Core\PrBuddy.Core.csproj</PrBuddyCore>
+    <DefineConstants Condition="Exists('$(PrBuddyCore)')">$(DefineConstants);PRBUDDY</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup Condition="Exists('$(PrBuddyCore)')">
+    <ProjectReference Include="$(PrBuddyCore)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CodeToLife.Analysis\CodeToLife.Analysis.csproj" />
+    <ProjectReference Include="..\CodeToLife.Runtime\CodeToLife.Runtime.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Update="wwwroot\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Remove="Properties\launchSettings.json" />
+  </ItemGroup>
+
+</Project>
