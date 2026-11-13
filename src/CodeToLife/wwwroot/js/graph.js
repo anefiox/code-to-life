@@ -475,6 +475,7 @@ export function applyOverlay() {
   const projects = state.graph.projects.map(p => p.name);
   const maxHeat = Math.max(1, ...state.live.typeHeat.values());
   const maxMemberHeat = Math.max(1, ...state.live.heat.values());
+  const maxWait = Math.max(1, ...state.live.waits.values(), ...state.live.typeWaits.values());
   const changesByType = new Map();
   const changesByMember = new Map();
   for (const c of state.changes?.items ?? []) {
@@ -536,8 +537,10 @@ export function applyOverlay() {
         }
         case 'live': {
           const heat = isMember ? (state.live.heat.get(id) ?? 0) / maxMemberHeat : (state.live.typeHeat.get(id) ?? 0) / maxHeat;
-          color = heat > 0 ? liveColor(heat) : '#8a96a8';
-          if (heat === 0) node.addClass('dim-overlay');
+          // Busy on the CPU: cyan heat. Not busy, but waiting on awaits: blue, so async I/O isn't invisible.
+          const waited = isMember ? state.live.waits.get(id) ?? 0 : state.live.typeWaits.get(id) ?? 0;
+          color = heat > 0 ? liveColor(heat) : waited > 0 ? waitColor(waited / maxWait) : '#8a96a8';
+          if (heat === 0 && waited === 0) node.addClass('dim-overlay');
           break;
         }
       }
@@ -563,6 +566,12 @@ function coverageColor(t) {
   const stops = [[255, 107, 107], [242, 181, 68], [86, 201, 154]];
   const [a, b, u] = t < 0.5 ? [stops[0], stops[1], t * 2] : [stops[1], stops[2], (t - 0.5) * 2];
   return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * u)).join(',')})`;
+}
+
+function waitColor(t) {
+  const from = [80, 90, 150], to = [122, 162, 255];
+  const u = Math.sqrt(t);
+  return `rgb(${from.map((v, i) => Math.round(v + (to[i] - v) * u)).join(',')})`;
 }
 
 function liveColor(t) {

@@ -189,7 +189,8 @@ api.MapPost("/debug/evaluate", async (EvaluateRequest request) =>
 
 // ---- Live view (no debugger needed) ----
 api.MapGet("/live/processes", () => LiveSampler.ListProcesses());
-api.MapPost("/live/start", async (LiveRequest request) => await Run(() => runtime.StartLiveAsync(request.ProcessId, request.IntervalMs ?? 250)));
+api.MapPost("/live/start", async (LiveRequest request) => await Run(() => runtime.StartLiveAsync(request.ProcessId, request.IntervalMs ?? 250, request.Events ?? true)));
+api.MapGet("/live/events", () => runtime.Tracer is { } t ? Results.Ok(t.Snapshot()) : Results.NotFound(new { error = runtime.TracerError ?? "Not watching a process with runtime events on." }));
 api.MapPost("/live/stop", () => Run(runtime.StopLiveAsync));
 api.MapGet("/live/totals", () => runtime.Sampler is { } s ? Results.Ok(new { totals = s.Totals() is var t ? new { members = t.Members, types = t.Types, calls = t.Calls, samples = t.Samples } : null }) : Results.NotFound());
 api.MapGet("/live/heap", async (int processId) =>
@@ -249,7 +250,7 @@ record AttachRequest(int ProcessId);
 record AnimateRequest(int Steps = 200, int DelayMs = 400, bool StepOver = false);
 record BreakpointRequest(string File, int[] Lines);
 record EvaluateRequest(string Expression, int? FrameId);
-record LiveRequest(int ProcessId, int? IntervalMs);
+record LiveRequest(int ProcessId, int? IntervalMs, bool? Events);
 
 sealed record CliOptions(string Path, int Port, bool OpenBrowser, bool ShowHelp)
 {

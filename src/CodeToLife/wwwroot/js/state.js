@@ -29,7 +29,8 @@ export const state = {
   rules: null,             // the last architecture check: { hasRules, violations, problems }
   trace: { frames: [], active: 0 }, // a stack trace pasted into the Trace tab, drawn like the debugger's stack
   incidents: null,         // type id -> failures from a scanned log that pass through it
-  live: { processId: null, heat: new Map(), typeHeat: new Map(), active: new Set(), observed: new Map(), heap: new Map(), samples: 0 },
+  live: { processId: null, heat: new Map(), typeHeat: new Map(), active: new Set(), observed: new Map(), heap: new Map(), samples: 0,
+    waits: new Map(), typeWaits: new Map(), events: null }, // waits: member/type id -> ms spent awaiting (runtime events)
   debug: { state: 'idle', frames: [], breakpoints: {}, activeFrame: 0, trail: [], animating: false },
   plan: { types: [], edges: [], notes: [] },
   planMode: false,

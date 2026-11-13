@@ -15,6 +15,7 @@ export function initLive() {
       <select id="liveProcess" class="grow" title=".NET processes on this machine"><option value="">Pick a running .NET process…</option></select>
       <button id="liveRefresh" title="Refresh the process list">⟳</button>
       <label class="slider">every <input id="liveInterval" type="number" min="50" max="5000" step="50" value="250" style="width:70px"> ms</label>
+      <label class="check" title="Also listen to the runtime's events: how long async code waits, exceptions thrown, allocations, HTTP calls"><input type="checkbox" id="liveEvents" checked> Runtime events</label>
       <button id="liveStart" class="primary">◉ Watch</button>
       <button id="liveStop" disabled>■ Stop</button>
       <button id="liveHeap" disabled title="Count live instances of each class (walks the heap)">Count instances</button>
@@ -24,7 +25,13 @@ export function initLive() {
       <div class="box"><h4>Hottest code <span id="liveSamples" class="muted"></span></h4><table class="table" id="liveHot"></table></div>
       <div class="box"><h4>Instances on the heap</h4><table class="table" id="liveHeapTable"><tr><td class="muted">Click "Count instances" while watching.</td></tr></table></div>
     </div>
-    <p class="muted" style="margin:8px 0 0">Live view reads the process's stacks from a snapshot several times a second. It never stops the program, so it's safe on anything you're allowed to inspect. It sees code that's <i>running</i>: an async method waiting on I/O doesn't show until it resumes.</p>`;
+    <div class="cols four" id="liveEventBoxes" hidden>
+      <div class="box"><h4>Waiting (awaits) <span class="muted" id="liveWaitNote"></span></h4><table class="table" id="liveWaits"></table></div>
+      <div class="box"><h4>Exceptions thrown</h4><table class="table" id="liveThrows"></table></div>
+      <div class="box"><h4>Allocating most</h4><table class="table" id="liveAllocs"></table></div>
+      <div class="box"><h4>HTTP calls out</h4><table class="table" id="liveHttp"></table></div>
+    </div>
+    <p class="muted" style="margin:8px 0 0">Live view reads the process's stacks from a snapshot several times a second and never stops the program. Stack samples see code that's <i>running</i>; with <b>Runtime events</b> on, it also listens to the runtime's EventPipe stream, so time spent <i>awaiting</i> shows up in blue, along with exceptions, allocations and HTTP calls.</p>`;
 
   $('liveRefresh').addEventListener('click', refreshProcesses);
   $('liveStart').addEventListener('click', start);
@@ -32,7 +39,12 @@ export function initLive() {
   $('liveHeap').addEventListener('click', countInstances);
   $('liveReset').addEventListener('click', reset);
   on('show-tab', tab => { if (tab === 'live') refreshProcesses(); });
-  on('sse:live.started', d => setWatching(d.processId));
+  on('sse:live.started', d => {
+    setWatching(d.processId);
+    $('liveEventBoxes').hidden = !d.events;
+    if (d.eventsError) toast(`Runtime events aren't available: ${d.eventsError}`, 'error');
+  });
+  on('sse:live.events', onEvents);
   on('sse:live.stopped', d => {
     setWatching(null);
     if (d.reason && d.reason !== 'stopped') toast(`Live view stopped: ${d.reason}`);
@@ -64,7 +76,7 @@ async function start() {
   const processId = Number($('liveProcess').value);
   if (!processId) { toast('Pick a process first. Start your app, then click ⟳.', 'error'); return; }
   reset();
-  try { await api('/live/start', { method: 'POST', body: { processId, intervalMs: Number($('liveInterval').value) || 250 } }); }
+  try { await api('/live/start', { method: 'POST', body: { processId, intervalMs: Number($('liveInterval').value) || 250, events: $('liveEvents').checked } }); }
   catch (e) { toast(e.message, 'error'); }
 }
 
@@ -99,8 +111,12 @@ function reset() {
   state.live.active.clear();
   state.live.heap.clear();
   state.live.samples = 0;
+  state.live.waits.clear();
+  state.live.typeWaits.clear();
+  state.live.events = null;
   graph.render();
   $('liveHot').innerHTML = '';
+  for (const id of ['liveWaits', 'liveThrows', 'liveAllocs', 'liveHttp']) $(id).innerHTML = '';
 }
 
 function onSample(sample) {
@@ -153,6 +169,38 @@ function renderHot() {
       <td style="width:40%"><div class="bar" style="width:${Math.max(3, heat / max * 100)}%"></div></td></tr>`;
   }).join('');
   $('liveHot').querySelectorAll('[data-go]').forEach(tr => tr.addEventListener('click', () => emit('go', tr.dataset.go)));
+}
+
+const nameOf = (memberId, typeId) => memberId && state.members.has(memberId)
+  ? `${state.types.get(state.memberType.get(memberId))?.name ?? '?'}.${memberLabel(state.members.get(memberId))}`
+  : state.types.get(typeId)?.name ?? typeId ?? '(not this code)';
+const ms = v => v >= 1000 ? `${(v / 1000).toFixed(1)} s` : `${Math.round(v)} ms`;
+const bytes = b => b >= 1 << 30 ? `${(b / (1 << 30)).toFixed(1)} GB` : b >= 1 << 20 ? `${(b / (1 << 20)).toFixed(1)} MB` : `${Math.round(b / 1024)} KB`;
+
+/** Totals from the runtime's event stream, about once a second. */
+function onEvents(e) {
+  const live = state.live;
+  live.events = e;
+  live.waits = new Map(e.waits.filter(w => w.memberId).map(w => [w.memberId, w.totalMs]));
+  live.typeWaits = new Map();
+  for (const w of e.waits) live.typeWaits.set(w.typeId, (live.typeWaits.get(w.typeId) ?? 0) + w.totalMs);
+  $('liveEventBoxes').hidden = false;
+  $('liveWaitNote').textContent = e.note ? '· ' + e.note : `· ${Math.round(e.seconds)} s`;
+
+  const row = (go, label, value, title = '') => `<tr class="${go ? 'clickable' : ''}" ${go ? `data-go="${escapeHtml(go)}"` : ''} title="${escapeHtml(title)}"><td>${label}</td><td class="num">${value}</td></tr>`;
+  $('liveWaits').innerHTML = e.waits.slice(0, 10).map(w => row(w.memberId ?? w.typeId, escapeHtml(nameOf(w.memberId, w.typeId)),
+    `${ms(w.totalMs)}<span class="muted"> · ${w.count}× · max ${ms(w.maxMs)}</span>`)).join('') || '<tr><td class="muted">No awaits seen in this code yet.</td></tr>';
+  $('liveThrows').innerHTML = e.exceptions.slice(0, 10).map(x => row(x.memberId ?? x.typeId, `${escapeHtml(x.exceptionType.split('.').pop())} <span class="muted">in ${escapeHtml(nameOf(x.memberId, x.typeId))}</span>`, `${x.count}×`, x.message ?? '')).join('')
+    || '<tr><td class="muted">Nothing thrown.</td></tr>';
+  $('liveAllocs').innerHTML = (e.allocators.length
+    ? e.allocators.slice(0, 8).map(a => row(a.memberId ?? a.typeId, escapeHtml(nameOf(a.memberId, a.typeId)), bytes(a.bytes)))
+    : e.allocations.slice(0, 8).map(a => row(a.typeId, escapeHtml(a.typeName), bytes(a.bytes)))).join('')
+    || '<tr><td class="muted">Nothing sampled yet.</td></tr>';
+  $('liveHttp').innerHTML = e.http.slice(0, 8).map(h => row(null, escapeHtml(h.request), `${h.count}× · avg ${ms(h.averageMs)}${h.failures ? ` · <span style="color:var(--bad)">${h.failures} failed</span>` : ''}`)).join('')
+    || `<tr><td class="muted">No outgoing HTTP${e.contentions ? `; ${e.contentions} lock contentions` : ''}.</td></tr>`;
+  for (const id of ['liveWaits', 'liveThrows', 'liveAllocs'])
+    $(id).querySelectorAll('[data-go]').forEach(tr => tr.addEventListener('click', () => emit('go', tr.dataset.go)));
+  if (state.overlay === 'live') graph.applyOverlay();
 }
 
 async function countInstances() {
