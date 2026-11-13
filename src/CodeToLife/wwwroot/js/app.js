@@ -7,6 +7,7 @@ import { initDebug, refreshStatus } from './debug.js';
 import { initLive } from './live.js';
 import { initChanges } from './changes.js';
 import { initPlan } from './plan.js';
+import { initInsights } from './insights.js';
 
 const $ = id => document.getElementById(id);
 
@@ -22,6 +23,7 @@ async function main() {
   initDebug();
   initLive();
   initChanges();
+  initInsights();
   initTopbar();
   initDock();
   initModal();
@@ -83,7 +85,7 @@ function connectEvents() {
   const source = new EventSource('/api/events');
   const forward = type => source.addEventListener(type, e => emit('sse:' + type, JSON.parse(e.data)));
   for (const type of ['debug.state', 'debug.stopped', 'debug.exited', 'debug.output', 'debug.breakpoints', 'debug.breakpoint', 'debug.animating', 'debug.error',
-    'live.started', 'live.stopped', 'live.sample', 'plan.changed']) forward(type);
+    'live.started', 'live.stopped', 'live.sample', 'live.events', 'plan.changed', 'rules.changed']) forward(type);
   source.addEventListener('graph.analyzing', () => { $('reload').classList.add('spinning'); $('reload').textContent = '…'; });
   source.addEventListener('graph.changed', () => {
     $('reload').textContent = '⟳';
@@ -100,6 +102,7 @@ function initTopbar() {
     state.overlay = e.target.value;
     if (state.overlay === 'changes' && !state.changes) emit('show-tab', 'changes');
     if (state.overlay === 'live' && !state.live.processId) emit('show-tab', 'live');
+    if (state.overlay === 'incidents' && !state.incidents) emit('show-tab', 'trace');
     graph.applyOverlay();
   });
   $('reload').addEventListener('click', () => api('/reload', { method: 'POST' }).catch(e => toast(e.message, 'error')));

@@ -36,6 +36,20 @@ public static class ChangesOverlay
         false;
 #endif
 
+#if PRBUDDY
+    /// <summary>
+    /// PR Buddy reports where a member's declaration starts, attributes included; the graph starts
+    /// it at its modifiers. Look a few lines down so <c>[Fact]</c> methods map to the method.
+    /// </summary>
+    static Runtime.GraphLocation? MemberAt(Runtime.FrameMapper mapper, string file, int line)
+    {
+        var location = mapper.FromSource(file, line);
+        for (var next = line + 1; location?.MemberId is null && next <= line + 4; next++)
+            if (mapper.FromSource(file, next) is { MemberId: not null } below) location = below;
+        return location;
+    }
+#endif
+
     public static ChangesReport Build(Workspace workspace, string? baseRef, bool uncommitted)
     {
 #if PRBUDDY
@@ -64,7 +78,7 @@ public static class ChangesOverlay
             foreach (var change in file.SemanticDiff?.Changes ?? [])
             {
                 if (change.Change == MemberChangeKind.CosmeticOnly) continue;
-                var location = change.Line is { } line ? mapper.FromSource(full, line) : null;
+                var location = change.Line is { } line ? MemberAt(mapper, full, line) : null;
                 if (location is null && change.Change == MemberChangeKind.Removed)
                 {
                     // Removed members have no line any more; pin them to the type they were in, if it survived.

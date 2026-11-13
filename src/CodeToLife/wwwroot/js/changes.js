@@ -61,6 +61,7 @@ async function run({ quiet = false } = {}) {
       <div class="box"><h4>Things to look at (${findings.length})</h4>${findings.map(f => `<div class="finding-item ${f.severity} ${f.typeId ? 'clickable' : ''}" ${f.typeId ? `data-go="${escapeHtml(f.memberId ?? f.typeId)}"` : ''} style="${f.typeId ? 'cursor:pointer' : ''}"><span class="rule">${escapeHtml(f.ruleId)} · ${f.severity}${f.path ? ` · ${escapeHtml(f.path)}:${f.line ?? ''}` : ''}</span><div>${escapeHtml(f.message)}</div></div>`).join('') || '<p class="muted">Nothing flagged.</p>'}</div>
     </div>`;
   $('chBody').querySelectorAll('[data-go]').forEach(el => el.addEventListener('click', () => emit('go', el.dataset.go)));
+  emit('changes-rendered', report);
   if (!quiet) toast(`${report.items.length} changed members across ${report.files.length} files.`);
 }
 

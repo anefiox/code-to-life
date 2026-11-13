@@ -21,6 +21,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\CodeToLife.Analysis\CodeToLife.Analysis.csproj" />
     <ProjectReference Include="..\..\src\CodeToLife.Runtime\CodeToLife.Runtime.csproj" />
+    <ProjectReference Include="..\..\src\CodeToLife.Insights\CodeToLife.Insights.csproj" />
   </ItemGroup>
 
 </Project>

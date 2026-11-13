@@ -71,6 +71,7 @@ async function showDetails(id, { keepScroll = false } = {}) {
   body.innerHTML = member ? memberHtml(type, member) : typeHtml(type);
   wireLinks(body);
   wireActions(body, type, member);
+  emit('details', { body, type, member });
   const focusMember = member ?? null;
   await renderSource(body.querySelector('[data-source]'), type, focusMember);
   if (keepScroll) $('details').scrollTop = scroll;
@@ -98,6 +99,7 @@ function typeHtml(t) {
         <button data-act="members" title="See its methods and what they call">Open up ⤵</button>
         <button data-act="focus" title="Show only this and what it touches">Focus</button>
         <button data-act="note">+ Note</button>
+        <button data-act="impact" title="What would need to change, or be checked, if this changes">⚠ Impact</button>
         ${t.members.some(m => m.kind === 'method') ? '<button data-act="bp-all" title="Break on entry to every method">● Break on all</button>' : ''}
       </div>
     </div>
@@ -116,6 +118,7 @@ function typeHtml(t) {
       <h3>Members</h3>
       <ul class="members">${t.members.map(m => memberRow(m)).join('')}</ul>
     </div>
+    <div data-tests></div>
     <div class="d-section"><h3>Depends on</h3><ul class="rel">${rel(out, 'target')}</ul></div>
     <div class="d-section"><h3>Used by</h3><ul class="rel">${rel(inc, 'source')}</ul></div>
     <div data-source></div>`;
@@ -150,11 +153,13 @@ function memberHtml(t, m) {
         <button data-act="calls" title="Follow its calls a few levels deep">Follow calls ⤵</button>
         <button data-act="bp">${hasBp ? '○ Remove breakpoint' : '● Breakpoint'}</button>
         <button data-act="run-to" title="Run until this method is reached">▶ Run to here</button>
+        <button data-act="impact" title="What would need to change, or be checked, if this changes">⚠ Impact</button>
       </div>
     </div>
     ${findings.length ? `<div class="d-section">${findings.map(findingHtml).join('')}</div>` : ''}
     <div class="d-section"><h3>Calls</h3><ul class="rel">${calls.map(c => `<li><span class="k">${c.kind}${c.count > 1 ? ' ×' + c.count : ''}</span>${link(c.target)}</li>`).join('') || '<li class="muted">nothing in this codebase</li>'}</ul></div>
     <div class="d-section"><h3>Called by</h3><ul class="rel">${callers.map(c => `<li><span class="k">${c.kind}</span>${link(c.source)}</li>`).join('') || '<li class="muted">nothing (an entry point, or only called from outside)</li>'}</ul></div>
+    <div data-tests></div>
     ${m.implements.length ? `<div class="d-section"><h3>Implements / overrides</h3><ul class="rel">${m.implements.map(i => `<li><span class="k">from</span>${link(i)}</li>`).join('')}</ul></div>` : ''}
     ${impls.length ? `<div class="d-section"><h3>Implemented by</h3><ul class="rel">${impls.map(i => `<li><span class="k">in</span>${link(i)}</li>`).join('')}</ul></div>` : ''}
     <div data-source></div>`;
@@ -207,6 +212,7 @@ function wireActions(body, type, member) {
   act('calls', () => graph.openView({ kind: 'calls', memberId: member.id }));
   act('bp', () => toggleBreakpoint(member.file, member.bodyLine || member.line));
   act('run-to', () => emit('run-to', member));
+  act('impact', () => emit('impact', member?.id ?? type.id));
   act('bp-all', async () => {
     for (const m of type.members.filter(m => m.kind === 'method' || m.kind === 'constructor'))
       if (!breakpointsIn(m.file).some(l => l >= m.line && l <= m.endLine)) await toggleBreakpoint(m.file, m.bodyLine || m.line);

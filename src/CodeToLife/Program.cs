@@ -5,6 +5,8 @@ using CodeToLife;
 using CodeToLife.Runtime.Dap;
 using CodeToLife.Runtime.Live;
 
+if (args is ["check", .. var checkArgs]) return CheckCommand.Run(checkArgs);
+
 var options = CliOptions.Parse(args);
 if (options.ShowHelp)
 {
@@ -12,6 +14,7 @@ if (options.ShowHelp)
         Code to Life: see a C# codebase as a living map, and watch it run.
 
         Usage: codetolife [<path>] [options]
+               codetolife check [<path>] [--format text|github]
 
           <path>          A .sln, .slnx, .csproj or folder (default: current directory)
           -p, --port <n>  Port to serve on (default: 5170, or the next free one)
@@ -20,8 +23,10 @@ if (options.ShowHelp)
 
         Debugging needs netcoredbg: run tools/Get-Netcoredbg.ps1, put it on PATH,
         or set CODETOLIFE_NETCOREDBG to its path.
+
+        check: verify the architecture rules in .codetolife/rules.json (exit 1 when broken).
         """);
-    return;
+    return 0;
 }
 
 var json = new JsonSerializerOptions(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) } };
@@ -123,6 +128,8 @@ api.MapGet("/events", (HttpContext context) => events.StreamAsync(context));
 api.MapGet("/changes", (string? @base, bool? uncommitted) =>
     workspace.IsLoaded ? Results.Ok(ChangesOverlay.Build(workspace, @base, uncommitted ?? false)) : Results.Problem("Still analyzing.", statusCode: 503));
 
+api.MapInsights(workspace, events);
+
 // ---- Planning ----
 api.MapGet("/plan", () => plans.Load());
 api.MapPut("/plan", (Plan plan) => { plans.Save(plan); events.Publish("plan.changed", new { }); return Results.Ok(); });
@@ -209,6 +216,7 @@ _ = workspace.OpenAsync(options.Path).ContinueWith(t =>
 
 app.Lifetime.ApplicationStopping.Register(() => runtime.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(3)));
 app.Run();
+return 0;
 
 static IResult NoDebugger() => Results.BadRequest(new
 {

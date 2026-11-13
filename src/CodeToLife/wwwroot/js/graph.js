@@ -237,6 +237,16 @@ function typeElements() {
   const shownSet = new Set(shown);
   edges = edges.filter(e => shownSet.has(e.source) && shownSet.has(e.target));
 
+  // Broken architecture rules: mark the edge that breaks them, adding it if its kind is hidden.
+  const violations = state.rules?.violations ?? [];
+  if (violations.length) {
+    const byPair = new Map(violations.map(v => [`${v.source}\u0000${v.target}`, v]));
+    for (const e of edges) if (byPair.has(`${e.source}\u0000${e.target}`)) { e.violation = byPair.get(`${e.source}\u0000${e.target}`); byPair.delete(`${e.source}\u0000${e.target}`); }
+    for (const v of byPair.values())
+      if (shownSet.has(v.source) && shownSet.has(v.target))
+        edges.push({ source: v.source, target: v.target, kind: v.kind.split(',')[0].trim(), kinds: [v.kind], total: v.count, file: v.file, line: v.line, violation: v });
+  }
+
   const elements = [];
   const groups = new Set();
   const group = (project, ns) => {
@@ -266,9 +276,9 @@ function typeElements() {
       data: {
         id: `e:${e.source}->${e.target}:${state.options.simplifyEdges ? '' : e.kind}${e.observed ? ':obs' : ''}${e.planned ? ':plan' : ''}`,
         source: e.source, target: e.target, kind: e.kind, kinds: e.kinds, count: e.total,
-        width: Math.min(1.2 + Math.log2(1 + e.total) * 0.7, 5), file: e.file, line: e.line, note: e.note,
+        width: Math.min(1.2 + Math.log2(1 + e.total) * 0.7, 5), file: e.file, line: e.line, note: e.note ?? e.violation?.message,
       },
-      classes: [e.kind, e.observed ? 'observed' : '', e.planned ? 'planned' : ''].join(' '),
+      classes: [e.kind, e.observed ? 'observed' : '', e.planned ? 'planned' : '', e.violation ? 'violation' : ''].join(' '),
     });
   }
   return elements;
@@ -423,6 +433,20 @@ function applySelectionClasses() {
   });
 }
 
+/** Fade everything except these types and members (and the types that own the members), or clear with null. */
+export function highlightSet(ids) {
+  cy.batch(() => {
+    cy.elements().removeClass('faded selected neighbor impact');
+    if (!ids) return;
+    const keep = new Set();
+    for (const id of ids) { keep.add(id); const t = typeOf(id); if (t) keep.add(t); }
+    const nodes = cy.nodes().filter(n => keep.has(n.id()) || keep.has(n.data('typeId')));
+    nodes.addClass('impact');
+    const kept = nodes.union(nodes.parents()).union(nodes.edgesWith(nodes));
+    cy.elements().not(kept).addClass('faded');
+  });
+}
+
 export function focus(id, depth = 1) {
   state.selected = id;
   state.focusDepth = depth;
@@ -486,6 +510,30 @@ export function applyOverlay() {
           else { color = '#8a96a8'; node.addClass('dim-overlay'); }
           break;
         }
+        case 'tests': {
+          const tests = state.tests;
+          if (!tests) { color = '#8a96a8'; break; }
+          if (isMember) {
+            const depth = tests.members.get(id);
+            const runsCode = ['method', 'constructor', 'operator', 'property', 'indexer', 'top-level statements'].includes(member.kind) && member.complexity > 0 && !member.isAbstract;
+            if (tests.projects.has(type.project)) { color = '#8a96a8'; node.addClass('dim-overlay'); }
+            else if (depth !== undefined) color = coverageColor(depth <= 2 ? 1 : depth <= 4 ? 0.6 : 0.35);
+            else if (runsCode) color = '#ff6b6b';
+            else { color = '#8a96a8'; node.addClass('dim-overlay'); }
+          } else {
+            const c = tests.types.get(id);
+            if (!c || c.members === 0) { color = '#8a96a8'; node.addClass('dim-overlay'); }
+            else color = c.covered === 0 ? '#ff6b6b' : coverageColor(c.covered / c.members);
+          }
+          break;
+        }
+        case 'incidents': {
+          const hits = state.incidents?.get(type.id) ?? 0;
+          const max = Math.max(1, ...(state.incidents?.values() ?? []));
+          color = hits ? heatColor(0.35 + 0.65 * hits / max) : '#8a96a8';
+          if (!hits) node.addClass('dim-overlay');
+          break;
+        }
         case 'live': {
           const heat = isMember ? (state.live.heat.get(id) ?? 0) / maxMemberHeat : (state.live.typeHeat.get(id) ?? 0) / maxHeat;
           color = heat > 0 ? liveColor(heat) : '#8a96a8';
@@ -506,6 +554,13 @@ export const changeColor = change => ({ added: '#56c99a', behavior: '#f2b544', s
 function heatColor(t) {
   // green -> amber -> red
   const stops = [[86, 201, 154], [242, 181, 68], [255, 107, 107]];
+  const [a, b, u] = t < 0.5 ? [stops[0], stops[1], t * 2] : [stops[1], stops[2], (t - 0.5) * 2];
+  return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * u)).join(',')})`;
+}
+
+/** Red (nothing reaches it) through amber to green (most of it is reached by tests). */
+function coverageColor(t) {
+  const stops = [[255, 107, 107], [242, 181, 68], [86, 201, 154]];
   const [a, b, u] = t < 0.5 ? [stops[0], stops[1], t * 2] : [stops[1], stops[2], (t - 0.5) * 2];
   return `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * u)).join(',')})`;
 }
@@ -549,12 +604,15 @@ export function applyRuntime() {
     // Recently visited places fade out behind the current one, like a comet tail.
     state.debug.trail.slice(-4, -1).reverse().forEach((frame, i) => nodeFor(frame)?.addClass(`trail-${i + 1}`));
 
-    const frames = state.debug.frames.filter(f => f.typeId);
+    // The debugger's stack when paused; otherwise a stack trace pasted into the Trace tab.
+    const debugging = state.debug.frames.length > 0;
+    const frames = (debugging ? state.debug.frames : state.trace.frames).filter(f => f.typeId);
+    const active = debugging ? state.debug.activeFrame : state.trace.active;
     let previous = null;
     frames.forEach((frame, i) => {
       const node = nodeFor(frame);
       if (!node) return;
-      node.addClass(i === state.debug.activeFrame ? 'current' : 'on-stack');
+      node.addClass(i === active ? 'current' : 'on-stack');
       // Draw caller -> callee along the stack (frames are innermost first).
       if (previous && previous.id() !== node.id() && !node.isParent() && !previous.isParent()) {
         cy.add({ group: 'edges', data: { id: `stack:${i}`, source: node.id(), target: previous.id(), kind: 'stack' }, classes: 'stack' });
@@ -672,6 +730,8 @@ function buildStyle() {
     { selector: 'edge[kind = "dispatch"]', style: { 'line-color': '#56c99a', 'target-arrow-color': '#56c99a', 'line-style': 'dashed', 'target-arrow-shape': 'triangle-backcurve' } },
     { selector: 'edge.planned', style: { 'line-color': '#ff79c6', 'target-arrow-color': '#ff79c6', 'source-arrow-color': '#ff79c6', 'line-style': 'dashed', 'line-dash-pattern': [8, 4], 'width': 2.5, 'opacity': 0.95 } },
     { selector: 'edge.observed', style: { 'line-color': live, 'target-arrow-color': live, 'line-style': 'dashed', 'line-dash-pattern': [6, 6], 'width': 2.5, 'opacity': 0.95 } },
+    { selector: 'edge.violation', style: { 'line-color': '#ff6b6b', 'target-arrow-color': '#ff6b6b', 'source-arrow-color': '#ff6b6b', 'line-style': 'dashed', 'line-dash-pattern': [4, 4], 'width': 3, 'opacity': 1, 'z-index': 90 } },
+    { selector: 'node.impact', style: { 'border-color': '#f2b544', 'border-width': 3, 'underlay-color': '#f2b544', 'underlay-opacity': 0.25, 'opacity': 1 } },
     {
       selector: 'edge.stack',
       style: {

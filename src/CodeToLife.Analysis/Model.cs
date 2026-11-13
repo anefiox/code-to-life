@@ -37,10 +37,12 @@ public sealed record TypeNode(
     string? Summary,
     string RuntimeName,
     IReadOnlyList<MemberNode> Members,
-    TypeMetrics Metrics);
+    TypeMetrics Metrics,
+    IReadOnlyList<string> Attributes);
 
 public sealed record TypeMetrics(int Lines, int MemberCount, int TotalComplexity, int MaxComplexity, int IncomingCount, int OutgoingCount);
 
+/// <param name="Attributes">Attribute names without the <c>Attribute</c> suffix, e.g. <c>Fact</c>, <c>HttpGet</c>.</param>
 /// <param name="Id">Roslyn documentation id, e.g. <c>M:Shop.Cart.Add(Shop.Product,System.Int32)</c>.</param>
 public sealed record MemberNode(
     string Id,
@@ -58,7 +60,8 @@ public sealed record MemberNode(
     int BodyLine,
     int Complexity,
     string? Summary,
-    IReadOnlyList<string> Implements);
+    IReadOnlyList<string> Implements,
+    IReadOnlyList<string> Attributes);
 
 public static class EdgeKind
 {

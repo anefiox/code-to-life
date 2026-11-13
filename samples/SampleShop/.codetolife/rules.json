@@ -1,0 +1,14 @@
+{
+  // The design SampleShop means to keep. Checked by the Rules tab and by `codetolife check`.
+  "layers": {
+    "Domain": "SampleShop.Domain.*",
+    "Services": "SampleShop.Services.*",
+    "Infrastructure": "SampleShop.Infrastructure.*"
+  },
+  "rules": [
+    { "from": "Domain", "notTo": "Services, Infrastructure", "because": "the domain model shouldn't know how it's priced, stored or paid for" },
+    { "from": "Infrastructure", "notTo": "Services", "because": "infrastructure serves the services, not the other way round" },
+    // Broken on purpose, for the demo: OrderService takes the concrete Inventory instead of an interface.
+    { "to": "Inventory, Repository`1, PaymentGateway", "onlyFrom": "Program", "kinds": ["has", "creates"], "because": "only Program should hold concrete infrastructure; services take interfaces so tests can swap them out" }
+  ]
+}

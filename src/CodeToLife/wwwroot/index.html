@@ -43,7 +43,9 @@
           <option value="project">Project</option>
           <option value="complexity">Complexity</option>
           <option value="coupling">Coupling</option>
+          <option value="tests">Test coverage</option>
           <option value="changes">What changed</option>
+          <option value="incidents">Incidents (from a log)</option>
           <option value="live">Live activity</option>
         </select>
       </label>
@@ -116,6 +118,8 @@
       <button data-tab="live">◉ Live</button>
       <button data-tab="changes">± What changed</button>
       <button data-tab="plan">✎ Plan</button>
+      <button data-tab="rules">⛨ Rules</button>
+      <button data-tab="trace">⚡ Trace</button>
       <button data-tab="output">Output</button>
       <span class="spacer"></span>
       <span id="debugState" class="state-badge">idle</span>
@@ -126,6 +130,8 @@
       <div class="dock-pane" data-pane="live" id="livePane"></div>
       <div class="dock-pane" data-pane="changes" id="changesPane"></div>
       <div class="dock-pane" data-pane="plan" id="planPane"></div>
+      <div class="dock-pane" data-pane="rules" id="rulesPane"></div>
+      <div class="dock-pane" data-pane="trace" id="tracePane"></div>
       <div class="dock-pane" data-pane="output"><pre id="output" class="output"></pre></div>
     </div>
   </section>

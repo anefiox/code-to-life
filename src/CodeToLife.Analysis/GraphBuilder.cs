@@ -222,8 +222,14 @@ public static class GraphBuilder
                 SummaryOf(type),
                 TypeIds.FullName(type, '+'),
                 members,
-                new TypeMetrics(lines, members.Count, members.Sum(m => m.Complexity), members.Count == 0 ? 0 : members.Max(m => m.Complexity), 0, 0));
+                new TypeMetrics(lines, members.Count, members.Sum(m => m.Complexity), members.Count == 0 ? 0 : members.Max(m => m.Complexity), 0, 0),
+                AttributeNames(type));
         }
+
+        /// <summary>True when a primary constructor parameter is read inside a member body, which makes the compiler keep it as a field.</summary>
+        static bool IsCaptured(IParameterSymbol parameter, TypeDeclarationSyntax type, SemanticModel model) =>
+            type.Members.Any(member => member.DescendantNodes().OfType<IdentifierNameSyntax>()
+                .Any(id => id.Identifier.ValueText == parameter.Name && SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(id).Symbol, parameter)));
 
         static bool IsTopLevelMain(ISymbol member) =>
             member is IMethodSymbol { Name: "<Main>$" } && member.Locations.Any(l => l.IsInSource);
@@ -294,7 +300,17 @@ public static class GraphBuilder
                     typeName = method.MethodKind is MethodKind.Constructor or MethodKind.StaticConstructor ? null : Display(method.ReturnType);
                     foreach (var t in SignatureTypes(method)) AddEdge(_typeId, t, EdgeKind.Uses, declaration);
                     // A record's primary constructor parameters become its properties.
-                    if (syntax is TypeDeclarationSyntax) { kind = "primary constructor"; }
+                    if (syntax is TypeDeclarationSyntax)
+                    {
+                        kind = "primary constructor";
+                        // A class's primary constructor parameters are captured as hidden fields when the body uses them.
+                        if (!type.IsRecord && syntax is TypeDeclarationSyntax typeSyntax)
+                        {
+                            var model = compilation.GetSemanticModel(syntax.SyntaxTree);
+                            foreach (var parameter in method.Parameters.Where(p => IsCaptured(p, typeSyntax, model)))
+                                foreach (var t in Mentioned(parameter.Type)) AddEdge(_typeId, t, EdgeKind.Has, declaration);
+                        }
+                    }
                     break;
                 default:
                     return null;
@@ -323,7 +339,8 @@ public static class GraphBuilder
                 file, line, endLine, bodyLine,
                 complexity,
                 SummaryOf(member),
-                ImplementedMembers(type, member));
+                ImplementedMembers(type, member),
+                AttributeNames(member));
         }
 
         static IEnumerable<SyntaxNode> BodiesOf(SyntaxNode syntax, bool topLevel)
@@ -592,6 +609,14 @@ public static class GraphBuilder
         if (type.IsGenericType) list.Add("generic");
         return list;
     }
+
+    static IReadOnlyList<string> AttributeNames(ISymbol symbol) =>
+        symbol.GetAttributes()
+            .Select(a => a.AttributeClass?.Name)
+            .Where(n => n is not null && n != "CompilerGeneratedAttribute" && n != "NullableContextAttribute" && n != "NullableAttribute")
+            .Select(n => n!.EndsWith("Attribute", StringComparison.Ordinal) ? n[..^"Attribute".Length] : n!)
+            .Distinct()
+            .ToList();
 
     static string? SummaryOf(ISymbol symbol)
     {

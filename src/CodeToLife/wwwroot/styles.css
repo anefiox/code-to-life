@@ -330,3 +330,21 @@ dialog::backdrop { background: rgba(0, 0, 0, .5); }
   .project, .crumbs { display: none; }
   .cols, .cols.two { grid-template-columns: 1fr; }
 }
+
+/* ---- tests, impact, rules, trace ---- */
+.box.tall { max-height: 260px; min-height: 200px; display: flex; flex-direction: column; }
+.code-input { flex: 1; width: 100%; min-height: 170px; resize: vertical; font-family: var(--mono); font-size: 12px; line-height: 1.45; }
+.frames { margin: 6px 0 0; padding-left: 22px; font-family: var(--mono); font-size: 12px; }
+.frames li { padding: 2px 0; }
+.frames li.mine { color: var(--text); cursor: pointer; }
+.frames li.mine:hover { color: var(--accent); }
+.impact section { margin-bottom: 12px; }
+.impact h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 0 0 4px; }
+.checklist { list-style: none; margin: 0; padding: 0; }
+.checklist li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding: 3px 0; border-bottom: 1px solid var(--line); }
+.checklist li label { display: inline-flex; gap: 6px; align-items: center; }
+.checklist li a { cursor: pointer; color: var(--accent); }
+.checklist input:checked + a { text-decoration: line-through; opacity: .6; }
+.finding-item.clickable { cursor: pointer; }
+.finding-item.clickable:hover { border-color: var(--accent); }
+#modalBody .impact { max-height: 60vh; overflow: auto; }
