@@ -6,6 +6,7 @@
   <Folder Name="/src/">
     <Project Path="src/CodeToLife.Analysis/CodeToLife.Analysis.csproj" />
     <Project Path="src/CodeToLife.Insights/CodeToLife.Insights.csproj" />
+    <Project Path="src/CodeToLife.Mcp/CodeToLife.Mcp.csproj" />
     <Project Path="src/CodeToLife.Runtime/CodeToLife.Runtime.csproj" />
     <Project Path="src/CodeToLife/CodeToLife.csproj" />
   </Folder>

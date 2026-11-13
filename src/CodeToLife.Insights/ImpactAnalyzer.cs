@@ -125,8 +125,8 @@ public static partial class ImpactAnalyzer
         summary.Add($"{direct} direct caller{S(direct)}, {Count("callers")} within {callerDepth} calls");
         if (Count("implementations") > 0) summary.Add($"{Count("implementations")} implementation{S(Count("implementations"))} or override{S(Count("implementations"))}");
         if (Count("contracts") > 0) summary.Add($"fulfills {Count("contracts")} interface or base member{S(Count("contracts"))}");
-        if (Count("dependents") > 0) summary.Add($"{Count("dependents")} type{S(Count("dependents"))} hold, create or mention it");
-        summary.Add(Count("tests") == 0 ? "no tests reach it" : $"{Count("tests")} test{S(Count("tests"))} reach it");
+        if (Count("dependents") > 0) summary.Add(Count("dependents") == 1 ? "1 type holds, creates or mentions it" : $"{Count("dependents")} types hold, create or mention it");
+        summary.Add(Count("tests") switch { 0 => "no tests reach it", 1 => "1 test reaches it", var n => $"{n} tests reach it" });
         if (Count("risks") > 0) summary.Add($"{Count("risks")} thing{S(Count("risks"))} the compiler won't catch");
         if (publicApi) summary.Add("public API: code outside this solution may use it");
 

@@ -154,7 +154,17 @@ public static class ArchitectureRules
             : $"only {rule.OnlyFrom} may {KindsText(rule)} {rule.To}";
 
     static string KindsText(ArchitectureRule rule) =>
-        rule.Kinds is { Count: > 0 } kinds ? string.Join("/", kinds) : "depend on";
+        rule.Kinds is { Count: > 0 } kinds
+            ? string.Join(" or ", kinds.Select(k => k.ToLowerInvariant() switch
+            {
+                EdgeKind.Has => "hold",
+                EdgeKind.Creates => "create",
+                EdgeKind.Calls => "call",
+                EdgeKind.Inherits => "inherit from",
+                EdgeKind.Implements => "implement",
+                _ => "use",
+            }))
+            : "depend on";
 
     static int Strength(string kind) => kind switch
     {

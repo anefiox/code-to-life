@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>codetolife-mcp</AssemblyName>
+    <RootNamespace>CodeToLife.Mcp</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>codetolife-mcp</ToolCommandName>
+    <PackageId>CodeToLife.Mcp</PackageId>
+    <Version>0.1.0</Version>
+    <Description>An MCP server that lets AI assistants query a C# codebase's graph and drive its debugger.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CodeToLife.Insights\CodeToLife.Insights.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="11.0.0" />
+    <PackageReference Include="ModelContextProtocol" Version="2.4.0" />
+  </ItemGroup>
+
+</Project>
