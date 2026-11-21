@@ -35,7 +35,8 @@ builder.Services
     .AddMcpServer(o => o.ServerInfo = new() { Name = "codetolife", Version = "0.1.0" })
     .WithStdioServerTransport()
     .WithTools<CodeTools>()
-    .WithTools<DebugTools>();
+    .WithTools<DebugTools>()
+    .WithTools<LearnTools>();
 
 var app = builder.Build();
 // Start reading the code straight away so the first question doesn't wait for it.

@@ -8,6 +8,7 @@ import { initLive } from './live.js';
 import { initChanges } from './changes.js';
 import { initPlan } from './plan.js';
 import { initInsights } from './insights.js';
+import { initLearn } from './learn.js';
 
 const $ = id => document.getElementById(id);
 
@@ -24,6 +25,7 @@ async function main() {
   initLive();
   initChanges();
   initInsights();
+  initLearn();
   initTopbar();
   initDock();
   initModal();
@@ -120,7 +122,7 @@ function initTopbar() {
     if (e.target.matches('input, textarea, select') || $('modal').open) return;
     if (e.key === 'Escape') {
       if (state.focusDepth > 0) graph.setFocusDepth(0);
-      else if (state.selected && state.view.kind === 'types') graph.select(null);
+      else if (state.selected && (state.view.kind === 'types' || state.view.kind === 'folders')) graph.select(null);
       else graph.back();
     } else if (e.key === 'f' || e.key === 'F') graph.getCy().fit(undefined, 40);
     else if (e.key === 'Backspace') graph.back();
@@ -129,7 +131,7 @@ function initTopbar() {
 
 function renderCrumbs() {
   const crumbs = $('crumbs');
-  if (state.view.kind === 'types') { crumbs.innerHTML = ''; return; }
+  if (state.view.kind === 'types' || state.view.kind === 'folders') { crumbs.innerHTML = ''; return; }
   const label = state.view.kind === 'members'
     ? `${state.types.get(state.view.typeId)?.name ?? '?'}: methods & calls`
     : (() => { const m = state.members.get(state.view.memberId); return `calls from ${state.types.get(state.memberType.get(state.view.memberId))?.name}.${memberLabel(m)}`; })();

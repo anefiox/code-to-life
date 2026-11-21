@@ -351,3 +351,53 @@ dialog::backdrop { background: rgba(0, 0, 0, .5); }
 
 .cols.four { grid-template-columns: repeat(4, 1fr); margin-top: 12px; }
 @media (max-width: 1100px) { .cols.four { grid-template-columns: 1fr 1fr; } }
+
+/* ---- Learning: overview, explanations, tour, pages ---- */
+.learn-overview { margin-top: 14px; color: var(--text); }
+.learn-overview h3, .explanation h3 { margin: 14px 0 6px; }
+.learn-overview .row { display: flex; gap: 6px; flex-wrap: wrap; }
+.hint { color: var(--muted); }
+.hint q { display: block; margin: 6px 0; padding: 6px 8px; border-left: 3px solid var(--accent); background: var(--panel-2); border-radius: 4px; color: var(--text); font-style: italic; }
+.hint q::before, .hint q::after { content: none; }
+.explanation .explained { margin: 0 0 6px; font-size: 13.5px; line-height: 1.55; }
+.explanation .stale { color: var(--warn); margin: 4px 0; }
+.explanation .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+dl.glossary { margin: 0; }
+dl.glossary dt { font-weight: 600; margin-top: 8px; }
+dl.glossary dt code { font-weight: 400; color: var(--muted); font-size: 11px; margin-left: 4px; }
+dl.glossary dd { margin: 2px 0 0; color: var(--muted); }
+.tour-card {
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: 56px; z-index: 8;
+  width: min(460px, calc(100% - 32px)); background: var(--panel); border: 1px solid var(--current);
+  border-radius: var(--radius); box-shadow: var(--shadow); padding: 10px 14px 12px;
+}
+.tour-card .tour-head { display: flex; gap: 8px; align-items: center; }
+.tour-card .tour-head .muted { flex: 1; font-size: 11.5px; }
+.tour-card h3 { margin: 8px 0 2px; font-size: 15px; }
+.tour-card .file { font-size: 11.5px; word-break: break-all; }
+.tour-card p { margin: 8px 0 10px; }
+.tour-card .row { display: flex; gap: 6px; justify-content: flex-end; }
+.page-list { list-style: none; margin: 6px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 4px; }
+.page-list button { width: 100%; display: flex; gap: 8px; align-items: baseline; text-align: left; background: transparent; border-color: transparent; }
+.page-list button:hover, .page-list button[aria-current="true"] { background: var(--panel-2); border-color: var(--line); }
+.page-list button[aria-current="true"] { border-color: var(--accent); }
+.page-list .path { font-family: var(--mono); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+.page-list .path.dynamic { font-style: italic; color: var(--muted); }
+.page-list .handler { margin-left: auto; color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
+.method { font: 600 10.5px var(--mono); padding: 1px 6px; border-radius: 4px; border: 1px solid currentColor; flex: none; min-width: 44px; text-align: center; }
+.method-get { color: var(--ok); }
+.method-post { color: var(--warn); }
+.method-put, .method-patch { color: var(--accent-2); }
+.method-delete { color: var(--bad); }
+.method-any, .method-head, .method-options { color: var(--muted); }
+ol.flow { margin: 0; padding-left: 20px; }
+ol.flow > li { margin: 0 0 12px; }
+ol.flow > li::marker { color: var(--muted); font-weight: 600; }
+ol.flow p { margin: 3px 0; }
+ol.flow a, .folder-files a { color: var(--accent); cursor: pointer; }
+ol.flow a:hover, .folder-files a:hover { text-decoration: underline; }
+ul.flow-calls { list-style: none; margin: 4px 0 0; padding: 0; }
+ul.flow-calls li { padding: 1px 0; }
+ul.flow-calls li::before { content: "↳ "; color: var(--muted); }
+.folder-files li { flex-wrap: wrap; }
+.folder-files .file { color: var(--muted); font-family: var(--mono); font-size: 11.5px; width: 100%; }

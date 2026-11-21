@@ -45,7 +45,8 @@ export function goTo(id) {
   if (cy.getElementById(id).length) { graph.select(id); return; }
   if (state.members.has(id)) {
     const typeId = state.memberType.get(id);
-    if (state.view.kind === 'types') { graph.select(typeId); showDetails(id); return; }
+    if (state.view.kind === 'folders') graph.goHome();
+    if (state.view.kind === 'types') { graph.ensureVisible({ typeId }); graph.select(typeId); showDetails(id); return; }
     graph.openView({ kind: 'members', typeId });
     graph.select(id);
     return;
@@ -103,6 +104,7 @@ function typeHtml(t) {
         ${t.members.some(m => m.kind === 'method') ? '<button data-act="bp-all" title="Break on entry to every method">● Break on all</button>' : ''}
       </div>
     </div>
+    <div data-explain></div>
     ${notes.map(n => `<div class="d-section"><div class="note-card">${escapeHtml(n.text)}</div></div>`).join('')}
     <div class="d-section">
       <div class="metrics">
@@ -156,6 +158,7 @@ function memberHtml(t, m) {
         <button data-act="impact" title="What would need to change, or be checked, if this changes">⚠ Impact</button>
       </div>
     </div>
+    <div data-explain></div>
     ${findings.length ? `<div class="d-section">${findings.map(findingHtml).join('')}</div>` : ''}
     <div class="d-section"><h3>Calls</h3><ul class="rel">${calls.map(c => `<li><span class="k">${c.kind}${c.count > 1 ? ' ×' + c.count : ''}</span>${link(c.target)}</li>`).join('') || '<li class="muted">nothing in this codebase</li>'}</ul></div>
     <div class="d-section"><h3>Called by</h3><ul class="rel">${callers.map(c => `<li><span class="k">${c.kind}</span>${link(c.source)}</li>`).join('') || '<li class="muted">nothing (an entry point, or only called from outside)</li>'}</ul></div>
@@ -238,7 +241,7 @@ const formatBytes = b => b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : b > 10
 
 // ---------------------------------------------------------------- source
 
-async function loadSource(file) {
+export async function loadSource(file) {
   if (!sourceCache.has(file)) sourceCache.set(file, api('/source?file=' + encodeURIComponent(file), { text: true }).then(t => t.split(/\r?\n/)));
   return sourceCache.get(file);
 }

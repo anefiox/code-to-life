@@ -26,6 +26,14 @@
       <ul id="searchResults" class="search-results" hidden></ul>
     </div>
     <div class="toolbar">
+      <label class="select" title="Folders: one box per folder, to get your bearings. Types: every class and how they connect.">
+        <span>Map</span>
+        <select id="mapLevel">
+          <option value="folders">Folders</option>
+          <option value="types">Types</option>
+        </select>
+      </label>
+      <button id="tourToggle" class="toggle" title="A guided reading order, from where the app starts">★ Start here</button>
       <label class="select" title="How the graph is arranged">
         <span>Layout</span>
         <select id="layout">
@@ -92,6 +100,7 @@
         <button id="exportPng" title="Save the graph as a PNG">⇩ PNG</button>
       </div>
       <div class="floating right" id="statusPill"></div>
+      <div id="tour" class="tour-card" hidden aria-live="polite"></div>
       <div id="contextMenu" class="context-menu" hidden></div>
       <div id="tooltip" class="tooltip" hidden></div>
     </section>
@@ -99,7 +108,8 @@
     <aside class="details" id="details">
       <div class="details-empty" id="detailsEmpty">
         <h2>Click anything</h2>
-        <p>Click a class to see its members and connections. Double-click to open it up and see how its methods call each other.</p>
+        <p>Click a folder or class to see what it's for and how it connects. Double-click a folder to see its classes, or a class to see how its methods call each other.</p>
+        <div id="learnOverview" class="learn-overview"></div>
         <ul class="hints">
           <li><kbd>Double-click</kbd> a class: its methods and who they call</li>
           <li><kbd>Right-click</kbd>: focus, breakpoints, notes</li>
@@ -114,6 +124,7 @@
 
   <section class="dock" id="dock">
     <div class="dock-tabs" role="tablist">
+      <button data-tab="pages">🌐 Pages</button>
       <button data-tab="debug" class="active">▶ Debug</button>
       <button data-tab="live">◉ Live</button>
       <button data-tab="changes">± What changed</button>
@@ -126,6 +137,7 @@
       <button id="dockToggle" class="icon" title="Show / hide">▾</button>
     </div>
     <div class="dock-body">
+      <div class="dock-pane" data-pane="pages" id="pagesPane"></div>
       <div class="dock-pane active" data-pane="debug" id="debugPane"></div>
       <div class="dock-pane" data-pane="live" id="livePane"></div>
       <div class="dock-pane" data-pane="changes" id="changesPane"></div>

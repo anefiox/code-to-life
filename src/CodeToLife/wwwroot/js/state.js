@@ -11,7 +11,7 @@ export const state = {
   edgesFrom: new Map(),    // type id -> [edge]
   edgesTo: new Map(),      // type id -> [edge]
 
-  view: { kind: 'types' }, // or { kind: 'members', typeId } / { kind: 'calls', memberId }
+  view: { kind: 'folders' }, // or { kind: 'types' } / { kind: 'members', typeId } / { kind: 'calls', memberId }
   viewStack: [],
   selected: null,          // node id
   focusDepth: 0,           // 0 = everything

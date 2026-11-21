@@ -41,11 +41,14 @@ public static class GraphBuilder
         var calls = new ConcurrentDictionary<(string, string), CallAccumulator>();
         var types = new ConcurrentBag<TypeNode>();
         var errors = new ConcurrentDictionary<string, int>();
+        var routes = new ConcurrentBag<RouteInfo>();
+        var views = new ConcurrentDictionary<string, List<string>>(StringComparer.Ordinal);
 
         Parallel.ForEach(declared, new ParallelOptions { CancellationToken = cancellationToken }, item =>
         {
             var (project, compilation, type) = item;
-            var collector = new Collector(ids, compilation, edges, calls);
+            var web = project.OutputKind == "test" ? null : new WebRoutes(root, routes, views);
+            var collector = new Collector(ids, compilation, edges, calls, web);
             types.Add(collector.Describe(type, project.Name));
         });
 
@@ -81,7 +84,14 @@ public static class GraphBuilder
             .OrderBy(c => c.Source, StringComparer.Ordinal).ThenBy(c => c.Target, StringComparer.Ordinal)
             .ToList();
 
-        return new CodeGraph(root, name, DateTimeOffset.Now, projectInfos, typeList, edgeList, callList, warnings);
+        var routeList = routes
+            .OrderBy(r => r.Path, StringComparer.Ordinal).ThenBy(r => r.Method, StringComparer.Ordinal)
+            .ThenBy(r => r.File, StringComparer.Ordinal).ThenBy(r => r.Line)
+            .ToList();
+        var viewMap = views.OrderBy(v => v.Key, StringComparer.Ordinal)
+            .ToDictionary(v => v.Key, v => (IReadOnlyList<string>)v.Value.Distinct().ToList(), StringComparer.Ordinal);
+
+        return new CodeGraph(root, name, DateTimeOffset.Now, projectInfos, typeList, edgeList, callList, warnings, routeList, viewMap);
     }
 
     static IEnumerable<INamedTypeSymbol> SourceTypes(INamespaceSymbol ns)
@@ -176,9 +186,11 @@ public static class GraphBuilder
         TypeIds ids,
         CSharpCompilation compilation,
         ConcurrentDictionary<(string, string, string), EdgeAccumulator> edges,
-        ConcurrentDictionary<(string, string), CallAccumulator> calls)
+        ConcurrentDictionary<(string, string), CallAccumulator> calls,
+        WebRoutes? web)
     {
         string _typeId = "";
+        WebRoutes.TypeContext? _web;
 
         public TypeNode Describe(INamedTypeSymbol type, string project)
         {
@@ -191,6 +203,7 @@ public static class GraphBuilder
             var (file, line, endLine) = primary is null ? (null, 0, 0) : Span(primary);
 
             Relationships(type, primary);
+            _web = web?.For(type, primary, compilation);
 
             var members = new List<MemberNode>();
             foreach (var member in type.GetMembers())
@@ -316,6 +329,9 @@ public static class GraphBuilder
                     return null;
             }
 
+            if (_web is not null && member is IMethodSymbol action && syntax is MethodDeclarationSyntax actionSyntax)
+                _web.Action(action, actionSyntax, memberId);
+
             // Code that runs: walk it for calls, creations and type mentions.
             var bodies = BodiesOf(syntax, topLevel).ToList();
             if (bodies.Count > 0)
@@ -420,6 +436,7 @@ public static class GraphBuilder
                     }
                     case InvocationExpressionSyntax invocation:
                     {
+                        _web?.Invocation(invocation, model, memberId, MemberIdOrNull);
                         var info = model.GetSymbolInfo(invocation);
                         if ((info.Symbol ?? info.CandidateSymbols.FirstOrDefault()) is IMethodSymbol method)
                         {
@@ -535,6 +552,10 @@ public static class GraphBuilder
             }
             return result;
         }
+
+        /// <summary>The graph id of a member declared in source, or null for one from a package or the framework.</summary>
+        string? MemberIdOrNull(ISymbol? member) =>
+            member is not null && ids.IdOf(member.ContainingType) is not null ? MemberId(member.OriginalDefinition) : null;
 
         string MemberId(ISymbol member)
         {

@@ -2,10 +2,12 @@ using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CodeToLife;
+using CodeToLife.Insights;
 using CodeToLife.Runtime.Dap;
 using CodeToLife.Runtime.Live;
 
 if (args is ["check", .. var checkArgs]) return CheckCommand.Run(checkArgs);
+if (args is ["explain", .. var explainArgs]) return await ExplainCommand.RunAsync(explainArgs);
 
 var options = CliOptions.Parse(args);
 if (options.ShowHelp)
@@ -15,18 +17,31 @@ if (options.ShowHelp)
 
         Usage: codetolife [<path>] [options]
                codetolife check [<path>] [--format text|github]
+               codetolife explain [<path>] --ai openrouter|URL [--ai-model MODEL] [--limit N]
 
           <path>          A .sln, .slnx, .csproj or folder (default: current directory)
           -p, --port <n>  Port to serve on (default: 5170, or the next free one)
               --no-browser  Don't open a browser
+              --ai <x>    Write explanations with an AI: "openrouter" (needs OPENROUTER_API_KEY) or the
+                          URL of an OpenAI-compatible server (key, if any, in CODETOLIFE_AI_KEY)
+              --ai-model <m>  The model to ask (default: openrouter/auto, or the server's own default)
           -h, --help      Show this help
 
         Debugging needs netcoredbg: run tools/Get-Netcoredbg.ps1, put it on PATH,
         or set CODETOLIFE_NETCOREDBG to its path.
 
         check: verify the architecture rules in .codetolife/rules.json (exit 1 when broken).
+        explain: write plain-English explanations for up to N types and methods (default 10).
         """);
     return 0;
+}
+
+AiConfig? aiConfig;
+try { aiConfig = AiConfig.From(options.Ai, options.AiModel, Environment.GetEnvironmentVariable); }
+catch (ArgumentException ex)
+{
+    Console.Error.WriteLine(ex.Message);
+    return 2;
 }
 
 var json = new JsonSerializerOptions(JsonSerializerDefaults.Web) { Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) } };
@@ -49,6 +64,7 @@ builder.Services.AddSingleton<EventHub>();
 builder.Services.AddSingleton<Workspace>();
 builder.Services.AddSingleton<RuntimeHub>();
 builder.Services.AddSingleton<PlanStore>();
+builder.Services.AddSingleton(new AiSettings(aiConfig));
 
 var app = builder.Build();
 app.UseDefaultFiles();
@@ -129,6 +145,7 @@ api.MapGet("/changes", (string? @base, bool? uncommitted) =>
     workspace.IsLoaded ? Results.Ok(ChangesOverlay.Build(workspace, @base, uncommitted ?? false)) : Results.Problem("Still analyzing.", statusCode: 503));
 
 api.MapInsights(workspace, events);
+api.MapLearn(workspace, app.Services.GetRequiredService<AiSettings>());
 
 // ---- Planning ----
 api.MapGet("/plan", () => plans.Load());
@@ -211,6 +228,7 @@ _ = workspace.OpenAsync(options.Path).ContinueWith(t =>
     if (t.IsFaulted) Console.Error.WriteLine($"Couldn't open {options.Path}: {t.Exception?.GetBaseException().Message}");
     else if (workspace.IsLoaded) Console.WriteLine($"  {workspace.Graph.Types.Count} types in {workspace.Graph.Projects.Count} project(s).");
     Console.WriteLine($"  Open {url}");
+    if (aiConfig is not null) Console.WriteLine($"  Explanations: {aiConfig}");
     Console.WriteLine(runtime.Debugger is { } d ? $"  Debugger: {d}" : "  Debugger: netcoredbg not found (live view still works). Run tools/Get-Netcoredbg.ps1 to enable stepping.");
     if (options.OpenBrowser) OpenBrowser(url);
 });
@@ -252,11 +270,11 @@ record BreakpointRequest(string File, int[] Lines);
 record EvaluateRequest(string Expression, int? FrameId);
 record LiveRequest(int ProcessId, int? IntervalMs, bool? Events);
 
-sealed record CliOptions(string Path, int Port, bool OpenBrowser, bool ShowHelp)
+sealed record CliOptions(string Path, int Port, bool OpenBrowser, bool ShowHelp, string? Ai, string? AiModel)
 {
     public static CliOptions Parse(string[] args)
     {
-        string? path = null;
+        string? path = null, ai = null, aiModel = null;
         int? port = null;
         var browser = true;
         var help = false;
@@ -266,11 +284,13 @@ sealed record CliOptions(string Path, int Port, bool OpenBrowser, bool ShowHelp)
             {
                 case "-p" or "--port" when i + 1 < args.Length && int.TryParse(args[i + 1], out var p): port = p; i++; break;
                 case "--no-browser": browser = false; break;
+                case "--ai" when i + 1 < args.Length: ai = args[++i]; break;
+                case "--ai-model" when i + 1 < args.Length: aiModel = args[++i]; break;
                 case "-h" or "--help" or "-?": help = true; break;
                 default: path ??= args[i]; break;
             }
         }
-        return new CliOptions(System.IO.Path.GetFullPath(path ?? Environment.CurrentDirectory), port ?? FreePort(5170), browser, help);
+        return new CliOptions(System.IO.Path.GetFullPath(path ?? Environment.CurrentDirectory), port ?? FreePort(5170), browser, help, ai, aiModel);
     }
 
     static int FreePort(int preferred)

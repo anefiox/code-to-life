@@ -9,7 +9,29 @@ public sealed record CodeGraph(
     IReadOnlyList<TypeNode> Types,
     IReadOnlyList<TypeEdge> Edges,
     IReadOnlyList<CallEdge> Calls,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<string> Warnings,
+    IReadOnlyList<RouteInfo>? Routes = null,
+    IReadOnlyDictionary<string, IReadOnlyList<string>>? Views = null);
+
+/// <summary>A web address the app answers: an ASP.NET Core minimal API, controller action or Razor Page.</summary>
+/// <param name="Method">GET, POST, "GET, POST", or * for any.</param>
+/// <param name="Path">The address, e.g. <c>/api/orders/{id}</c>; as written in the code when <paramref name="FixedPath"/> is false.</param>
+/// <param name="Handler">The member that handles it. For an inline lambda, the member the lambda is written in.</param>
+/// <param name="Kind">minimal, controller or page.</param>
+/// <param name="InlineCalls">For an inline lambda: the members it calls, so the flow starts there rather than at its container.</param>
+/// <param name="Note">Something worth knowing about how the address was found, or null.</param>
+/// <param name="Inline">The handler is a lambda written where the address is mapped.</param>
+public sealed record RouteInfo(
+    string Method,
+    string Path,
+    bool FixedPath,
+    string Handler,
+    string? File,
+    int Line,
+    string Kind,
+    IReadOnlyList<string> InlineCalls,
+    string? Note,
+    bool Inline = false);
 
 public sealed record ProjectInfo(
     string Name,

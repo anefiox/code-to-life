@@ -1,6 +1,7 @@
 // The canvas: builds Cytoscape elements for the current view, styles them, and keeps the
 // runtime highlights (debugger stack, live activity, changes) drawn on top.
 import { state, emit, on, typeOf, isTestProject, memberLabel, debounce } from './state.js';
+import { folderElements } from './learn.js';
 
 export const EDGE_KINDS = [
   { kind: 'inherits', label: 'Inherits', color: '#b48cff', style: 'solid', help: 'Base class, or an interface extending another' },
@@ -56,7 +57,8 @@ export function init(container) {
     const node = e.target;
     const id = node.data('group') ? node.data('typeId') : node.id();
     if (!id) return;
-    if (state.types.has(id)) openView({ kind: 'members', typeId: id });
+    if (node.data('folder')) emit('open-folder', id);
+    else if (state.types.has(id)) openView({ kind: 'members', typeId: id });
     else if (state.members.has(id)) openView({ kind: 'calls', memberId: id });
   });
   cy.on('cxttap', 'node', e => {
@@ -88,14 +90,15 @@ export const setTapInterceptor = fn => { tapInterceptor = fn; };
 
 // ---------------------------------------------------------------- views
 
-const viewKey = view => view.kind === 'types' ? 'types' : `${view.kind}:${view.typeId ?? view.memberId}`;
+const viewKey = view => view.kind === 'types' || view.kind === 'folders' ? view.kind : `${view.kind}:${view.typeId ?? view.memberId}`;
 
 export function openView(view, { push = true } = {}) {
   if (push && viewKey(view) !== viewKey(state.view)) state.viewStack.push({ view: state.view, selected: state.selected });
   state.view = view;
   state.focusDepth = 0;
   render({ relayout: false });
-  if (view.kind !== 'types') select(view.typeId ?? view.memberId, { center: false });
+  if (view.kind === 'members' || view.kind === 'calls') select(view.typeId ?? view.memberId, { center: false });
+  else select(null);
   emit('view', view);
 }
 
@@ -121,7 +124,7 @@ export function goHome() {
 export function render({ relayout = false, fit = false } = {}) {
   if (!cy || !state.graph) return;
   savePositions();
-  const elements = state.view.kind === 'types' ? typeElements() : memberElements(state.view);
+  const elements = state.view.kind === 'folders' ? folderElements() : state.view.kind === 'types' ? typeElements() : memberElements(state.view);
   const key = viewKey(state.view);
   const cached = positions.get(key);
 
@@ -160,7 +163,8 @@ export function runLayout(mode = 'full', { animated = false } = {}) {
   const options = {
     'fcose': {
       name: 'fcose', quality: cy.nodes().length > 600 ? 'draft' : 'default', randomize: mode === 'full', animate, animationDuration: 450,
-      nodeRepulsion: () => (state.view.kind === 'types' ? 7000 : 4500), idealEdgeLength: () => (state.view.kind === 'types' ? 110 : 70), edgeElasticity: () => 0.3, nestingFactor: 0.5, gravity: 0.3,
+      nodeRepulsion: () => (state.view.kind === 'folders' ? 14000 : state.view.kind === 'types' ? 7000 : 4500),
+      idealEdgeLength: () => (state.view.kind === 'folders' ? 160 : state.view.kind === 'types' ? 110 : 70), edgeElasticity: () => 0.3, nestingFactor: 0.5, gravity: 0.3,
       gravityRangeCompound: 1.4, packComponents: true, tile: true, nodeDimensionsIncludeLabels: true, padding: 30,
     },
     'dagre-tb': { name: 'dagre', rankDir: 'TB', nodeSep: 24, rankSep: 70, edgeSep: 8, animate, animationDuration: 400, padding: 30 },
@@ -644,8 +648,10 @@ export function applyRuntime() {
 export function ensureVisible(frame) {
   if (!frame?.typeId) return;
   const present = cy.getElementById(frame.memberId ?? '').length || cy.getElementById(frame.typeId).length || cy.getElementById(`grp:${frame.typeId}`).length;
-  if (!present && state.view.kind === 'types') {
+  if (!present && (state.view.kind === 'types' || state.view.kind === 'folders')) {
     state.focusDepth = 0;
+    state.view = { kind: 'types' };
+    emit('view', state.view);
     const type = state.types.get(frame.typeId);
     if (type) { state.hiddenProjects.delete(type.project); state.hiddenNamespaces.delete(nsKey(type)); state.hiddenKinds.delete(type.kind); }
     render();
@@ -703,6 +709,16 @@ function buildStyle() {
       },
     },
     { selector: 'node.home', style: { 'border-width': 2.5, 'background-opacity': 0.1 } },
+    {
+      selector: 'node.folder',
+      style: {
+        'font-size': 12.5, 'font-weight': 600, 'padding': '16px', 'text-max-width': 200, 'border-width': 2,
+        'background-opacity': light ? 0.12 : 0.16, 'min-zoomed-font-size': 4,
+      },
+    },
+    { selector: 'node.folder.test', style: { 'border-style': 'dashed', 'color': muted } },
+    { selector: 'node.tour-seen', style: { 'underlay-color': accent, 'underlay-opacity': 0.14, 'underlay-padding': 6 } },
+    { selector: 'node.tour-current', style: { 'underlay-color': current, 'underlay-opacity': 0.55, 'underlay-padding': 12, 'border-color': current, 'border-width': 3.5, 'opacity': 1, 'z-index': 98 } },
     { selector: 'node[?member]', style: { 'font-size': 10.5, 'padding': '6px', 'background-opacity': light ? 0.14 : 0.18 } },
     { selector: 'node[kind = "interface"]', style: { 'border-style': 'dashed' } },
     { selector: 'node.planned', style: { 'border-style': 'dashed', 'border-width': 2, 'background-opacity': 0.12 } },
@@ -736,6 +752,7 @@ function buildStyle() {
     style.push({ selector: `edge[kind = "${k.kind}"]`, style: s });
   }
   style.push(
+    { selector: 'edge.folder-edge', style: { 'line-color': muted, 'target-arrow-color': muted, 'opacity': 0.6, 'arrow-scale': 1.1, 'curve-style': 'bezier' } },
     { selector: 'edge[kind = "dispatch"]', style: { 'line-color': '#56c99a', 'target-arrow-color': '#56c99a', 'line-style': 'dashed', 'target-arrow-shape': 'triangle-backcurve' } },
     { selector: 'edge.planned', style: { 'line-color': '#ff79c6', 'target-arrow-color': '#ff79c6', 'source-arrow-color': '#ff79c6', 'line-style': 'dashed', 'line-dash-pattern': [8, 4], 'width': 2.5, 'opacity': 0.95 } },
     { selector: 'edge.observed', style: { 'line-color': live, 'target-arrow-color': live, 'line-style': 'dashed', 'line-dash-pattern': [6, 6], 'width': 2.5, 'opacity': 0.95 } },

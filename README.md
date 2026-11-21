@@ -4,6 +4,8 @@ See a C# codebase as a living map: every class and how it connects, the methods 
 
 Point it at a solution, project or folder and it opens a browser page with:
 
+- **Learn a new codebase.** It opens on a **Folders** map: one box per folder, with what that kind of folder is usually for and how the folders lean on each other. **★ Start here** is a guided reading order, from where the program starts along the code it leads to, then the controllers and pages ASP.NET Core finds by itself, then the types everything uses. The **Pages** tab lists every address the app answers (minimal APIs, controller actions, Razor Pages) and shows what happens when one is visited: the middleware, the route, the handler, the code it calls and the Razor view it fills in.
+- **Explanations in plain English.** Every class and method gets a "What it does" section, written by Claude through the MCP server or by an AI you point Code to Life at (OpenRouter or your own OpenAI-compatible server). They're kept in `.codetolife/explanations.json` and flagged when the code changes. The packages a project and each file use are described too.
 - **The map.** Every type, grouped by namespace, joined by how they really relate: inherits, implements, *has* (a field or property holds it), *calls*, *creates* (`new`), and optionally *mentions*. Click a class for its members, dependencies, users and source. Double-click to open it up and see its methods calling each other and into other classes. Right-click a method to follow its calls a few levels deep.
 - **The debugger, drawn on the map.** Start your program (or attach to one) and step through it. Whenever it pauses, the call stack lights up across the graph as a trail of glowing nodes and moving arrows, with locals and the current line beside it. **Animate** keeps stepping on its own so you can watch execution flow through the classes. Click the margin of the source view, or a method's ● button, for breakpoints. **Run to here** on any method.
 - **Live view, no debugger needed.** Pick any running .NET process and Code to Life samples its stacks several times a second (without pausing it) and heats up the code that's running. Calls that only exist at runtime, like the concrete class behind an interface, appear as new cyan edges. It also listens to the runtime's own event stream, so time spent **awaiting** shows up in blue, with exceptions thrown, the methods allocating most, and outgoing HTTP calls. **Count instances** shows how many objects of each class are alive on the heap.
@@ -26,7 +28,7 @@ Needs the .NET 10 SDK.
 dotnet run --project src/CodeToLife -- path/to/YourSolution.sln
 ```
 
-The argument can be a `.sln`, `.slnx`, `.csproj` or a folder (default: the current directory). It opens your browser at `http://localhost:5170`. Options: `--port <n>`, `--no-browser`.
+The argument can be a `.sln`, `.slnx`, `.csproj` or a folder (default: the current directory). It opens your browser at `http://localhost:5170`. Options: `--port <n>`, `--no-browser`, and `--ai <openrouter|URL>` with `--ai-model <name>` for explanations (below).
 
 Try it on the bundled sample, a little shop that keeps taking orders:
 
@@ -37,12 +39,13 @@ dotnet run --project src/CodeToLife -- samples/SampleShop
 
 Then, in the page:
 
-1. Double-click **OrderService** to see its methods and what they call.
-2. **Live** tab: run `samples/SampleShop/bin/Debug/net10.0/SampleShop.exe` in a terminal, click ⟳, pick the ★ process, **Watch**. The recommendation engine glows as it burns CPU; **Count instances** shows orders piling up.
-3. **Debug** tab (needs netcoredbg, below): click OrderService's `CheckoutAsync` → **● Breakpoint**, then **▶ Start** with arguments `--once`. When it stops, the stack lights up from the top-level code through `OrderService`. Press **▶▶ Animate** to watch it step through the pricing rules.
-4. **Color by → Test coverage**: pricing is tested, checkout and payments aren't. Click `PricingEngine` → **⚠ Impact** to see what depends on it.
-5. **Rules** tab: **✓ Check** finds the deliberate violation (`OrderService` holds the concrete `Inventory`), drawn in red.
-6. **Live** tab with the shop running: `FakePaymentGateway.ChargeAsync` shows up under **Waiting**, blue on the map, even though it never uses the CPU.
+1. Press **★ Start here** and step through the tour: it starts at the top-level code in `Program.cs` and follows `OrderService` into the pricing rules. Then switch **Map** to **Types**.
+2. Double-click **OrderService** to see its methods and what they call.
+3. **Live** tab: run `samples/SampleShop/bin/Debug/net10.0/SampleShop.exe` in a terminal, click ⟳, pick the ★ process, **Watch**. The recommendation engine glows as it burns CPU; **Count instances** shows orders piling up.
+4. **Debug** tab (needs netcoredbg, below): click OrderService's `CheckoutAsync` → **● Breakpoint**, then **▶ Start** with arguments `--once`. When it stops, the stack lights up from the top-level code through `OrderService`. Press **▶▶ Animate** to watch it step through the pricing rules.
+5. **Color by → Test coverage**: pricing is tested, checkout and payments aren't. Click `PricingEngine` → **⚠ Impact** to see what depends on it.
+6. **Rules** tab: **✓ Check** finds the deliberate violation (`OrderService` holds the concrete `Inventory`), drawn in red.
+7. **Live** tab with the shop running: `FakePaymentGateway.ChargeAsync` shows up under **Waiting**, blue on the map, even though it never uses the CPU.
 
 To install it as a global tool:
 
@@ -51,6 +54,28 @@ dotnet pack src/CodeToLife -c Release -o nupkg
 dotnet tool install -g CodeToLife --add-source ./nupkg
 codetolife path/to/YourSolution.sln
 ```
+
+## Learning a codebase
+
+- **Folders** (the **Map** menu) groups the code into at most 14 folders, merging the deepest into their parents, with an arrow wherever one folder's types use another's. Click a folder for what it's for, what it uses and what uses it, and its files; double-click it (or **Show its types**) to see its classes highlighted on the types map.
+- **★ Start here** starts at the program's entry point (top-level statements or `Main` in the app project with the most addresses), then each step follows whatever leads to the most code: what a type creates, calls or holds, and from an interface on to the classes that implement it. Then come the controllers and Razor Pages, which nothing in the code calls because ASP.NET Core finds them by itself, then the types used all over. Each step says why it's there.
+- **Pages** finds `app.MapGet("/x", …)` and friends (with `MapGroup` prefixes followed back through locals), controller actions (`[Route]` and `[HttpGet("…")]` templates with `[controller]` and `[action]` filled in, or the default `/{controller}/{action}` route) and Razor Pages (from the file's path and its `@page` template). Pick one to see the request step by step, the calls it makes three levels deep (through interfaces to the classes behind them), and the `.cshtml` it renders, with its source.
+
+### Explanations
+
+The details panel has a **What it does** section for every class and method. There are three ways to fill it in:
+
+- **Claude, through the MCP server.** Register `codetolife-mcp` (below) and ask: *Use explain_next and save_explanation to explain this project for a new developer.*
+- **An AI from the page.** Start Code to Life with `--ai openrouter` (set `OPENROUTER_API_KEY`; the model defaults to `openrouter/auto`, or pick one with `--ai-model`) or `--ai <URL>` for any OpenAI-compatible server such as Unsloth Studio, LM Studio, Ollama or llama.cpp. A URL can point at the server's web page (`http://host:8888/chat`): the API is taken to be `/v1` on the same address. If it needs a key, put it in `CODETOLIFE_AI_KEY`. Then click **Explain with AI** on anything.
+- **In bulk from the command line:**
+
+  ```bash
+  codetolife explain path/to/YourSolution.sln --ai openrouter --limit 25
+  ```
+
+  It explains the most connected types first, then methods, skipping tests and anything already explained.
+
+Explanations are saved in `.codetolife/explanations.json`, keyed by type or member id, so they can be committed and shared. Each remembers a hash of the code it describes and is marked as possibly out of date when that code changes. Keys only ever come from environment variables, never the command line or a URL.
 
 ## The debugger
 
@@ -111,7 +136,7 @@ dotnet tool install -g CodeToLife.Mcp --add-source ./nupkg
 claude mcp add codetolife -- codetolife-mcp
 ```
 
-Tools: `overview`, `find`, `describe`, `callers`, `callees`, `path_between`, `impact`, `tests_for`, `check_architecture`, `map_stack_trace`, `scan_log`, `open`, and the debugger: `debug_launch` (with breakpoints by method name or `file:line`), `debug_step`, `debug_continue`, `debug_pause`, `debug_evaluate`, `debug_where`, `debug_breakpoints`, `debug_stop`. Each debugger command waits for the program to stop and answers with the mapped stack, the locals and the code around the current line. The debugger needs netcoredbg; installed as a global tool, point `CODETOLIFE_NETCOREDBG` at it.
+Tools: `overview`, `find`, `describe`, `callers`, `callees`, `path_between`, `impact`, `tests_for`, `check_architecture`, `map_stack_trace`, `scan_log`, `open`, and the debugger: `debug_launch` (with breakpoints by method name or `file:line`), `debug_step`, `debug_continue`, `debug_pause`, `debug_evaluate`, `debug_where`, `debug_breakpoints`, `debug_stop`, and for explanations `explain_next` (what still needs one, with its source) and `save_explanation`. Each debugger command waits for the program to stop and answers with the mapped stack, the locals and the code around the current line. The debugger needs netcoredbg; installed as a global tool, point `CODETOLIFE_NETCOREDBG` at it.
 
 ## What changed (PR Buddy)
 
@@ -160,6 +185,7 @@ Complexity is counted the same way as PR Buddy's PRB013 rule: 1 plus one per bra
 - Stack sampling sees code that's *running* and misses very short calls; leave it running a while. Waiting async code shows through runtime events instead.
 - The test map is static (see above), and impact's "string mentions" are a text search, so expect the odd false positive.
 - With netcoredbg 3.2.0 on Windows, the debugged program's own console output didn't come through as debugger output events, so it may be missing from the Output pane and from `debug_*` results.
+- Pages only covers ASP.NET Core minimal APIs, controllers and Razor Pages; Blazor `@page` components, gRPC services and conventional routes other than `{controller}/{action}` aren't listed. An address built at run time is shown as written in the code.
 - Very large solutions (thousands of types) render, but are easier to read with test projects hidden, namespaces filtered, or **Focus** on one class.
 
 ## Development
