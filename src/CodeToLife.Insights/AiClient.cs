@@ -87,25 +87,25 @@ public static partial class AiClient
     }
 
     /// <summary>Reasoning models may wrap their thinking in tags; keep only the answer.</summary>
-    public static string CleanAnswer(string? text)
+    public static string CleanAnswer(string? text, int limit = Explanations.SummaryLimit)
     {
         var answer = Thinking().Replace(text ?? "", "");
         var close = ThinkingClose().Match(answer);
         if (close.Success) answer = answer[(close.Index + close.Length)..];
         answer = answer.Trim().Trim('"', '\'', '“', '”').Trim();
         answer = Heading().Replace(answer, "").Trim().Trim('"', '\'', '“', '”').Trim();
-        return answer.Length > Explanations.SummaryLimit ? answer[..Explanations.SummaryLimit].Trim() : answer;
+        return answer.Length > limit ? answer[..limit].Trim() : answer;
     }
 
     public static async Task<string> AskAsync(AiConfig config, IReadOnlyList<(string Role, string Content)> messages,
-        HttpClient? http = null, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+        HttpClient? http = null, TimeSpan? timeout = null, CancellationToken cancellationToken = default, int maxTokens = 700)
     {
         var body = new JsonObject
         {
             ["model"] = config.Model,
             ["messages"] = new JsonArray(messages.Select(m => (JsonNode)new JsonObject { ["role"] = m.Role, ["content"] = m.Content }).ToArray()),
             ["temperature"] = 0.3,
-            ["max_tokens"] = 700,
+            ["max_tokens"] = maxTokens,
             ["stream"] = false,
         };
         using var request = new HttpRequestMessage(HttpMethod.Post, config.Endpoint)
@@ -148,7 +148,7 @@ public static partial class AiClient
         {
             throw new InvalidOperationException($"{config.Label} did not return JSON. Is {config.Endpoint} an OpenAI-compatible API?");
         }
-        var answer = CleanAnswer(content);
+        var answer = CleanAnswer(content, maxTokens > 700 ? 6000 : Explanations.SummaryLimit);
         if (answer.Length == 0) throw new InvalidOperationException($"{config.Label} returned an empty answer.");
         return answer;
     }

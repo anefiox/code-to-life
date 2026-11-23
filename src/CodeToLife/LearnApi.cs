@@ -5,6 +5,8 @@ namespace CodeToLife;
 /// <summary>The AI that writes explanations, when Code to Life was started with --ai.</summary>
 public sealed record AiSettings(AiConfig? Config);
 
+public sealed record AskRequest(string? Question);
+
 /// <summary>The API for learning a codebase: explanations, the package glossary, the tour and page flows.</summary>
 static class LearnApi
 {
@@ -18,6 +20,7 @@ static class LearnApi
         {
             explanations = Explanations.For(workspace.Index),
             glossary = Glossary.ForProject(workspace.Graph),
+            concepts = Concepts.For(workspace.Graph),
             ai = ai.Config is { } c ? new { label = c.Label, model = c.Model } : null,
         })));
 
@@ -40,7 +43,34 @@ static class LearnApi
         {
             tour = new { steps = Learning.StartTour(workspace.Index) },
             pages = Learning.RouteFlows(workspace.Index),
+            folderNotes = Folders.NotesFor(workspace.Graph),
         })));
+
+        // ---- Onboarding helpers ----
+        api.MapGet("/recipes", () => Guard(() => !workspace.IsLoaded ? NotReady() : Results.Ok(new { recipes = Recipes.For(workspace.Index) })));
+        api.MapGet("/settings", () => Guard(() => !workspace.IsLoaded ? NotReady() : Results.Ok(Settings.For(workspace.Index))));
+        api.MapGet("/templates", () => Guard(() => !workspace.IsLoaded ? NotReady() : Results.Ok(RazorMap.For(workspace.Index))));
+        api.MapGet("/file", (string? file) => Guard(() => Results.Ok(ProjectFiles.ReadProjectFile(workspace.RootDirectory, file))));
+        api.MapGet("/examples", (string id) => Guard(() => !workspace.IsLoaded ? NotReady() : Results.Ok(TestExamples.For(workspace.Index, id))));
+        api.MapGet("/history", (string? id) => Guard(() => !workspace.IsLoaded ? NotReady()
+            : id is null ? Results.Ok(GitHistory.For(workspace.Graph)) : Results.Ok(GitHistory.For(workspace.Index, id))));
+        api.MapGet("/onboarding", () => Guard(() => !workspace.IsLoaded ? NotReady()
+            : Results.Text(OnboardingGuide.Build(workspace.Index), "text/markdown; charset=utf-8")));
+        api.MapPost("/ask", async (AskRequest request, CancellationToken cancellationToken) =>
+        {
+            if (!workspace.IsLoaded) return NotReady();
+            try
+            {
+                if (ai.Config is not { } config)
+                    return Results.Ok(new AskAnswer(null, Ask.Sources(workspace.Index, request.Question).Select(id => Ask.Describe(workspace.Index, id)).ToList()));
+                var (messages, sources) = Ask.Prompt(workspace.Index, request.Question ?? "");
+                await asking.WaitAsync(cancellationToken);
+                try { return Results.Ok(new AskAnswer(await AiClient.AskAsync(config, messages, cancellationToken: cancellationToken, maxTokens: 1200), sources)); }
+                finally { asking.Release(); }
+            }
+            catch (ExplainException ex) { return Results.Json(new { error = ex.Message }, statusCode: ex.Status); }
+            catch (InvalidOperationException ex) { return Results.Json(new { error = ex.Message }, statusCode: StatusCodes.Status502BadGateway); }
+        });
 
         api.MapGet("/template", (string? file) => Guard(() => Results.Ok(Learning.ReadTemplate(workspace.RootDirectory, file))));
     }
@@ -117,5 +147,45 @@ static class ExplainCommand
         }
         Console.WriteLine($"Saved to {Explanations.PathFor(index.Graph.Root)}. {queue.Count - batch.Count + failures} still to explain.");
         return failures > 0 ? 1 : 0;
+    }
+}
+
+/// <summary><c>codetolife guide [&lt;path&gt;] [--out FILE]</c>: writes the Markdown onboarding guide.</summary>
+static class GuideCommand
+{
+    public static async Task<int> RunAsync(string[] args)
+    {
+        string? path = null, output = null;
+        for (var i = 0; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--out" when i + 1 < args.Length: output = args[++i]; break;
+                case "-h" or "--help":
+                    Console.WriteLine("Usage: codetolife guide [<path>] [--out FILE]");
+                    Console.WriteLine();
+                    Console.WriteLine("Writes a Markdown onboarding guide for the code at <path> to FILE, or to the console.");
+                    return 0;
+                default:
+                    if (args[i].StartsWith('-')) { Console.Error.WriteLine($"Unknown option {args[i]}. Try codetolife guide --help."); return 2; }
+                    path ??= args[i];
+                    break;
+            }
+        }
+        using var codebase = new Codebase();
+        await codebase.OpenAsync(Path.GetFullPath(path ?? Environment.CurrentDirectory), watch: false);
+        if (!codebase.IsLoaded) { Console.Error.WriteLine($"Couldn't analyze the code: {codebase.LastError}"); return 2; }
+        var text = OnboardingGuide.Build(codebase.Index);
+        if (output is null)
+        {
+            Console.OutputEncoding = System.Text.Encoding.UTF8;
+            Console.Write(text);
+        }
+        else
+        {
+            await File.WriteAllTextAsync(output, text);
+            Console.WriteLine($"Wrote {output}.");
+        }
+        return 0;
     }
 }

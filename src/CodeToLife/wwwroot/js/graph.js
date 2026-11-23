@@ -2,6 +2,7 @@
 // runtime highlights (debugger stack, live activity, changes) drawn on top.
 import { state, emit, on, typeOf, isTestProject, memberLabel, debounce } from './state.js';
 import { folderElements } from './learn.js';
+import { templateElements } from './guide.js';
 
 export const EDGE_KINDS = [
   { kind: 'inherits', label: 'Inherits', color: '#b48cff', style: 'solid', help: 'Base class, or an interface extending another' },
@@ -90,7 +91,7 @@ export const setTapInterceptor = fn => { tapInterceptor = fn; };
 
 // ---------------------------------------------------------------- views
 
-const viewKey = view => view.kind === 'types' || view.kind === 'folders' ? view.kind : `${view.kind}:${view.typeId ?? view.memberId}`;
+const viewKey = view => view.kind === 'types' || view.kind === 'folders' || view.kind === 'templates' ? view.kind : `${view.kind}:${view.typeId ?? view.memberId}`;
 
 export function openView(view, { push = true } = {}) {
   if (push && viewKey(view) !== viewKey(state.view)) state.viewStack.push({ view: state.view, selected: state.selected });
@@ -124,7 +125,8 @@ export function goHome() {
 export function render({ relayout = false, fit = false } = {}) {
   if (!cy || !state.graph) return;
   savePositions();
-  const elements = state.view.kind === 'folders' ? folderElements() : state.view.kind === 'types' ? typeElements() : memberElements(state.view);
+  const elements = state.view.kind === 'folders' ? folderElements() : state.view.kind === 'templates' ? templateElements()
+    : state.view.kind === 'types' ? typeElements() : memberElements(state.view);
   const key = viewKey(state.view);
   const cached = positions.get(key);
 
@@ -163,7 +165,7 @@ export function runLayout(mode = 'full', { animated = false } = {}) {
   const options = {
     'fcose': {
       name: 'fcose', quality: cy.nodes().length > 600 ? 'draft' : 'default', randomize: mode === 'full', animate, animationDuration: 450,
-      nodeRepulsion: () => (state.view.kind === 'folders' ? 14000 : state.view.kind === 'types' ? 7000 : 4500),
+      nodeRepulsion: () => (state.view.kind === 'folders' || state.view.kind === 'templates' ? 14000 : state.view.kind === 'types' ? 7000 : 4500),
       idealEdgeLength: () => (state.view.kind === 'folders' ? 160 : state.view.kind === 'types' ? 110 : 70), edgeElasticity: () => 0.3, nestingFactor: 0.5, gravity: 0.3,
       gravityRangeCompound: 1.4, packComponents: true, tile: true, nodeDimensionsIncludeLabels: true, padding: 30,
     },
@@ -648,7 +650,7 @@ export function applyRuntime() {
 export function ensureVisible(frame) {
   if (!frame?.typeId) return;
   const present = cy.getElementById(frame.memberId ?? '').length || cy.getElementById(frame.typeId).length || cy.getElementById(`grp:${frame.typeId}`).length;
-  if (!present && (state.view.kind === 'types' || state.view.kind === 'folders')) {
+  if (!present && (state.view.kind === 'types' || state.view.kind === 'folders' || state.view.kind === 'templates')) {
     state.focusDepth = 0;
     state.view = { kind: 'types' };
     emit('view', state.view);
@@ -717,6 +719,11 @@ function buildStyle() {
       },
     },
     { selector: 'node.folder.test', style: { 'border-style': 'dashed', 'color': muted } },
+    { selector: 'node.template', style: { 'font-size': 11.5, 'padding': '10px', 'border-width': 2 } },
+    { selector: 'node.template-external', style: { 'border-style': 'dashed', 'color': muted } },
+    { selector: 'node.template-handler', style: { 'font-size': 10.5, 'padding': '6px' } },
+    { selector: 'node.read', style: { 'border-style': 'double', 'border-width': 4 } },
+    { selector: 'node.flow-now', style: { 'underlay-color': current, 'underlay-opacity': 0.6, 'underlay-padding': 12, 'border-color': current, 'border-width': 3.5, 'opacity': 1, 'z-index': 99 } },
     { selector: 'node.tour-seen', style: { 'underlay-color': accent, 'underlay-opacity': 0.14, 'underlay-padding': 6 } },
     { selector: 'node.tour-current', style: { 'underlay-color': current, 'underlay-opacity': 0.55, 'underlay-padding': 12, 'border-color': current, 'border-width': 3.5, 'opacity': 1, 'z-index': 98 } },
     { selector: 'node[?member]', style: { 'font-size': 10.5, 'padding': '6px', 'background-opacity': light ? 0.14 : 0.18 } },
@@ -753,6 +760,8 @@ function buildStyle() {
   }
   style.push(
     { selector: 'edge.folder-edge', style: { 'line-color': muted, 'target-arrow-color': muted, 'opacity': 0.6, 'arrow-scale': 1.1, 'curve-style': 'bezier' } },
+    { selector: 'edge.template-edge.layout', style: { 'line-color': '#b48cff', 'target-arrow-color': '#b48cff', 'opacity': 0.85 } },
+    { selector: 'edge.template-edge.renders', style: { 'line-color': '#56c99a', 'target-arrow-color': '#56c99a', 'line-style': 'dashed', 'opacity': 0.85 } },
     { selector: 'edge[kind = "dispatch"]', style: { 'line-color': '#56c99a', 'target-arrow-color': '#56c99a', 'line-style': 'dashed', 'target-arrow-shape': 'triangle-backcurve' } },
     { selector: 'edge.planned', style: { 'line-color': '#ff79c6', 'target-arrow-color': '#ff79c6', 'source-arrow-color': '#ff79c6', 'line-style': 'dashed', 'line-dash-pattern': [8, 4], 'width': 2.5, 'opacity': 0.95 } },
     { selector: 'edge.observed', style: { 'line-color': live, 'target-arrow-color': live, 'line-style': 'dashed', 'line-dash-pattern': [6, 6], 'width': 2.5, 'opacity': 0.95 } },

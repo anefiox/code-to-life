@@ -5,6 +5,7 @@ See a C# codebase as a living map: every class and how it connects, the methods 
 Point it at a solution, project or folder and it opens a browser page with:
 
 - **Learn a new codebase.** It opens on a **Folders** map: one box per folder, with what that kind of folder is usually for and how the folders lean on each other. **★ Start here** is a guided reading order, from where the program starts along the code it leads to, then the controllers and pages ASP.NET Core finds by itself, then the types everything uses. The **Pages** tab lists every address the app answers (minimal APIs, controller actions, Razor Pages) and shows what happens when one is visited: the middleware, the route, the handler, the code it calls and the Razor view it fills in.
+- **Onboarding helpers.** **How do I…** has checklists for common changes (add a page, a setting, a service, a table, a test) worked out from your own code, with an example to copy for each step. **Settings** maps every appsettings.json key and environment variable to where it's set and every place it's read. A **Views** map shows layouts, partials and who renders each view. **Ask** answers questions about the code with links to it. Framework terms get tooltips, classes show **examples from tests** and their **Git history**, pages can be **played step by step**, and the whole picture exports as an **ONBOARDING.md**.
 - **Explanations in plain English.** Every class and method gets a "What it does" section, written by Claude through the MCP server or by an AI you point Code to Life at (OpenRouter or your own OpenAI-compatible server). They're kept in `.codetolife/explanations.json` and flagged when the code changes. The packages a project and each file use are described too.
 - **The map.** Every type, grouped by namespace, joined by how they really relate: inherits, implements, *has* (a field or property holds it), *calls*, *creates* (`new`), and optionally *mentions*. Click a class for its members, dependencies, users and source. Double-click to open it up and see its methods calling each other and into other classes. Right-click a method to follow its calls a few levels deep.
 - **The debugger, drawn on the map.** Start your program (or attach to one) and step through it. Whenever it pauses, the call stack lights up across the graph as a trail of glowing nodes and moving arrows, with locals and the current line beside it. **Animate** keeps stepping on its own so you can watch execution flow through the classes. Click the margin of the source view, or a method's ● button, for breakpoints. **Run to here** on any method.
@@ -77,6 +78,21 @@ The details panel has a **What it does** section for every class and method. The
 
 Explanations are saved in `.codetolife/explanations.json`, keyed by type or member id, so they can be committed and shared. Each remembers a hash of the code it describes and is marked as possibly out of date when that code changes. Keys only ever come from environment variables, never the command line or a URL.
 
+### More help for newcomers
+
+- **How do I…** (a dock tab) has short checklists for common changes, worked out from the patterns the solution already follows: run and test it, add a page (a controller and its views, a Razor Page, or a minimal API, whichever the app uses), add a setting (and the options class it binds to), add a service (with the lifetime to pick), add a database table and migration (when there's a `DbContext`), add a partial view or Blazor component, and add a test. Each step links to a real example at the right line.
+- **Settings** lists every key in `appsettings.json`, with its value in each `appsettings.{Environment}.json`, the environment variable that overrides it (`Section__Key`), where it's set for local runs (`launchSettings.json`, Compose files, `Dockerfile`, `.env.example`, workflows), the options class it's bound to, and every place the code reads it (`Configuration["…"]`, `GetValue`, `GetSection`, `GetConnectionString`, `Environment.GetEnvironmentVariable`). Connection strings, passwords, keys and anything in a real `.env` file are never shown.
+- **Views** (the **Map** menu) appears when there are Razor views or components. It shows which layout each view uses (directly or through `_ViewStart.cshtml`), the partials and view components it renders, the sections it fills, its `@model`, and the actions, handlers and Razor Pages that render it.
+- Framework terms such as *middleware*, *dependency injection* or *DbContext* are underlined in explanations, the tour and page flows; hover or tab to one to see what it means. The overview lists every term that fits the solution's packages.
+- Every class and method also shows **Examples from tests** (the tests that call it, with their code) and **History** (the commits that last changed it and who made them). Tick **I've read this** to track your progress; the overview shows how far you've got and picks the Start here tour up where you left off. Progress stays in your browser.
+- **▶ Play it step by step** on any page walks through the request one step at a time, lighting up each method on the map with its explanation and code, and ending with the view it renders.
+- **Ask** (a dock tab) answers questions such as *Where are orders saved?* It finds the classes and methods whose names, files, addresses and explanations match best and lists them; with `--ai`, it also sends that code to the AI for a short answer with every class, method and file it mentions linked to the map.
+- The overview lists the **most changed files** from Git, and **Onboarding guide** downloads one Markdown page with the projects, tools, how to run it, folders, the tour, pages, settings, recipes, explanations and hotspots. From the command line:
+
+  ```bash
+  codetolife guide path/to/YourSolution.sln --out ONBOARDING.md
+  ```
+
 ## The debugger
 
 Stepping uses **netcoredbg**, Samsung's open-source (MIT) .NET debugger, over the Debug Adapter Protocol, the same protocol VS Code speaks. (Microsoft's `vsdbg` isn't used: its license only allows Microsoft's own tools.) Install it with:
@@ -136,7 +152,7 @@ dotnet tool install -g CodeToLife.Mcp --add-source ./nupkg
 claude mcp add codetolife -- codetolife-mcp
 ```
 
-Tools: `overview`, `find`, `describe`, `callers`, `callees`, `path_between`, `impact`, `tests_for`, `check_architecture`, `map_stack_trace`, `scan_log`, `open`, and the debugger: `debug_launch` (with breakpoints by method name or `file:line`), `debug_step`, `debug_continue`, `debug_pause`, `debug_evaluate`, `debug_where`, `debug_breakpoints`, `debug_stop`, and for explanations `explain_next` (what still needs one, with its source) and `save_explanation`. Each debugger command waits for the program to stop and answers with the mapped stack, the locals and the code around the current line. The debugger needs netcoredbg; installed as a global tool, point `CODETOLIFE_NETCOREDBG` at it.
+Tools: `overview`, `find`, `describe`, `callers`, `callees`, `path_between`, `impact`, `tests_for`, `check_architecture`, `map_stack_trace`, `scan_log`, `open`, and the debugger: `debug_launch` (with breakpoints by method name or `file:line`), `debug_step`, `debug_continue`, `debug_pause`, `debug_evaluate`, `debug_where`, `debug_breakpoints`, `debug_stop`, for explanations `explain_next` (what still needs one, with its source) and `save_explanation`, and for onboarding `how_to`, `settings`, `templates`, `test_examples`, `history` and `onboarding_guide`. Each debugger command waits for the program to stop and answers with the mapped stack, the locals and the code around the current line. The debugger needs netcoredbg; installed as a global tool, point `CODETOLIFE_NETCOREDBG` at it.
 
 ## What changed (PR Buddy)
 

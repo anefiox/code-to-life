@@ -31,6 +31,7 @@
         <select id="mapLevel">
           <option value="folders">Folders</option>
           <option value="types">Types</option>
+          <option value="templates" hidden>Views</option>
         </select>
       </label>
       <button id="tourToggle" class="toggle" title="A guided reading order, from where the app starts">★ Start here</button>
@@ -125,6 +126,9 @@
   <section class="dock" id="dock">
     <div class="dock-tabs" role="tablist">
       <button data-tab="pages">🌐 Pages</button>
+      <button data-tab="recipes">🧭 How do I…</button>
+      <button data-tab="settings">⚙ Settings</button>
+      <button data-tab="ask">💬 Ask</button>
       <button data-tab="debug" class="active">▶ Debug</button>
       <button data-tab="live">◉ Live</button>
       <button data-tab="changes">± What changed</button>
@@ -138,6 +142,9 @@
     </div>
     <div class="dock-body">
       <div class="dock-pane" data-pane="pages" id="pagesPane"></div>
+      <div class="dock-pane" data-pane="recipes" id="recipesPane"></div>
+      <div class="dock-pane" data-pane="settings" id="settingsPane"></div>
+      <div class="dock-pane" data-pane="ask" id="askPane"></div>
       <div class="dock-pane active" data-pane="debug" id="debugPane"></div>
       <div class="dock-pane" data-pane="live" id="livePane"></div>
       <div class="dock-pane" data-pane="changes" id="changesPane"></div>

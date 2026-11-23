@@ -45,7 +45,7 @@ export function goTo(id) {
   if (cy.getElementById(id).length) { graph.select(id); return; }
   if (state.members.has(id)) {
     const typeId = state.memberType.get(id);
-    if (state.view.kind === 'folders') graph.goHome();
+    if (state.view.kind === 'folders' || state.view.kind === 'templates') graph.goHome();
     if (state.view.kind === 'types') { graph.ensureVisible({ typeId }); graph.select(typeId); showDetails(id); return; }
     graph.openView({ kind: 'members', typeId });
     graph.select(id);

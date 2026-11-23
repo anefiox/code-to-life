@@ -401,3 +401,48 @@ ul.flow-calls li { padding: 1px 0; }
 ul.flow-calls li::before { content: "↳ "; color: var(--muted); }
 .folder-files li { flex-wrap: wrap; }
 .folder-files .file { color: var(--muted); font-family: var(--mono); font-size: 11.5px; width: 100%; }
+
+/* ---- onboarding helpers: terms, progress, recipes, settings, views, playback, ask ---- */
+.term { border-bottom: 1px dotted color-mix(in srgb, var(--accent) 70%, transparent); cursor: help; }
+.term-tip { position: fixed; z-index: 200; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel);
+  box-shadow: var(--shadow); font-size: 12px; line-height: 1.45; pointer-events: none; color: var(--text); }
+.term-tip b { display: block; color: var(--accent); margin-bottom: 2px; }
+.guide-overview progress { width: 100%; height: 6px; accent-color: var(--accent); }
+.guide-overview .row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.guide-overview .rel .k { width: 34px; }
+.guide-overview .rel li { flex-wrap: wrap; }
+.link-button { background: transparent; border-color: transparent; color: var(--muted); text-decoration: underline; }
+details.terms { margin-top: 12px; }
+details.terms summary, details.recipe summary, details.setting summary { cursor: pointer; }
+.read-toggle { display: inline-flex; gap: 6px; align-items: center; margin: 0 0 6px; color: var(--muted); font-size: 12px; cursor: pointer; }
+.recipes { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 8px; margin-top: 8px; }
+details.recipe { border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px; background: var(--panel-2); }
+details.recipe summary { font-weight: 600; }
+details.recipe p { margin: 6px 0; color: var(--muted); }
+details.recipe ol { margin: 4px 0 0; padding-left: 18px; }
+details.recipe li { margin: 4px 0; }
+details.recipe a, .settings-list a, #settingsPane a, .answer a { color: var(--accent); cursor: pointer; }
+#settingsPane .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+#settingsPane input[type="search"] { min-width: 220px; }
+.settings-list { margin-top: 8px; display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 4px 12px; }
+details.setting { border-top: 1px solid var(--line); padding: 5px 0; }
+details.setting summary code { color: var(--text); }
+details.setting p { margin: 4px 0; }
+.env { font: 11px var(--mono); color: var(--warn); }
+.tag { font-size: 10.5px; padding: 0 6px; border-radius: 4px; background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 2px 10px; margin: 4px 0; font-size: 12px; }
+dl.facts dt { color: var(--muted); }
+dl.facts dd { margin: 0; word-break: break-word; }
+.example-title { margin: 8px 0 4px; font-size: 12px; }
+.example-title a { color: var(--accent); cursor: pointer; }
+ul.commits { margin: 4px 0 0; padding-left: 16px; font-size: 12px; }
+ul.commits code { color: var(--muted); font-size: 11px; }
+.source .ln.hit { background: color-mix(in srgb, var(--ok) 22%, transparent); }
+.player .row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.player a { color: var(--accent); cursor: pointer; }
+.ask-form { display: grid; gap: 6px; max-width: 900px; }
+.ask-form .row { display: flex; gap: 8px; align-items: stretch; }
+.ask-form textarea { flex: 1; resize: vertical; font: inherit; background: var(--panel-2); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius); padding: 6px 8px; }
+.answer { max-width: 900px; margin-top: 8px; }
+.answer-text { white-space: pre-wrap; line-height: 1.55; }
+.answer code { font-family: var(--mono); font-size: 12px; }

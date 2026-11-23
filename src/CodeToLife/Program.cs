@@ -8,6 +8,7 @@ using CodeToLife.Runtime.Live;
 
 if (args is ["check", .. var checkArgs]) return CheckCommand.Run(checkArgs);
 if (args is ["explain", .. var explainArgs]) return await ExplainCommand.RunAsync(explainArgs);
+if (args is ["guide", .. var guideArgs]) return await GuideCommand.RunAsync(guideArgs);
 
 var options = CliOptions.Parse(args);
 if (options.ShowHelp)
@@ -18,6 +19,7 @@ if (options.ShowHelp)
         Usage: codetolife [<path>] [options]
                codetolife check [<path>] [--format text|github]
                codetolife explain [<path>] --ai openrouter|URL [--ai-model MODEL] [--limit N]
+               codetolife guide [<path>] [--out FILE]
 
           <path>          A .sln, .slnx, .csproj or folder (default: current directory)
           -p, --port <n>  Port to serve on (default: 5170, or the next free one)
@@ -32,6 +34,8 @@ if (options.ShowHelp)
 
         check: verify the architecture rules in .codetolife/rules.json (exit 1 when broken).
         explain: write plain-English explanations for up to N types and methods (default 10).
+        guide: write a Markdown onboarding guide (tools, how to run it, folders, the tour, pages,
+               settings, how-to recipes, explanations and hotspots) to FILE or the console.
         """);
     return 0;
 }

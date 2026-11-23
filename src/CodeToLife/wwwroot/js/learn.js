@@ -3,13 +3,14 @@
 import { state, on, emit, api, escapeHtml, shortPath, toast } from './state.js';
 import * as graph from './graph.js';
 import { loadSource } from './panels.js';
+import { setConcepts, annotate, paintGuideOverview, guideDetails, playFlow, saveTourStep, setRead, stopPlayback, guide } from './guide.js';
 
 const $ = id => document.getElementById(id);
 
 export const learn = {
   explanations: {}, glossary: [], ai: null, // from /api/explanations
   tour: [], pages: null,                     // from /api/learn
-  tourIndex: -1, flow: null, folders: null,
+  tourIndex: -1, flow: null, folders: null, folderNotes: {},
 };
 
 export function initLearn() {
@@ -20,21 +21,26 @@ export function initLearn() {
     else if (id && learn.flow) { learn.flow = null; paintPages(); }
   });
   on('rendered', paintTour);
+  on('overview', paintOverview);
+  on('tour-resume', index => { $('tourToggle').classList.add('on'); showTourStep(index); });
   on('open-folder', id => showFolderTypes(id));
   $('tourToggle').addEventListener('click', () => setTour(learn.tourIndex < 0));
   $('mapLevel').addEventListener('change', e => {
-    if (e.target.value === 'folders') graph.openView({ kind: 'folders' });
+    if (e.target.value === 'folders' || e.target.value === 'templates') graph.openView({ kind: e.target.value });
     else graph.goHome();
   });
-  on('view', view => { $('mapLevel').value = view.kind === 'folders' ? 'folders' : 'types'; });
+  on('view', view => { $('mapLevel').value = view.kind === 'folders' || view.kind === 'templates' ? view.kind : 'types'; });
   on('show-tab', tab => { if (tab === 'pages') paintPages(); });
 }
 
 async function load() {
   const [explained, guided] = await Promise.allSettled([api('/explanations'), api('/learn')]);
-  if (explained.status === 'fulfilled') Object.assign(learn, { explanations: explained.value.explanations, glossary: explained.value.glossary, ai: explained.value.ai });
+  if (explained.status === 'fulfilled') {
+    Object.assign(learn, { explanations: explained.value.explanations, glossary: explained.value.glossary, ai: explained.value.ai });
+    setConcepts(explained.value.concepts);
+  }
   else toast('Explanations unavailable: ' + explained.reason.message, 'error');
-  if (guided.status === 'fulfilled') Object.assign(learn, { tour: guided.value.tour.steps, pages: guided.value.pages });
+  if (guided.status === 'fulfilled') Object.assign(learn, { tour: guided.value.tour.steps, pages: guided.value.pages, folderNotes: guided.value.folderNotes ?? {} });
   else toast('Guided views unavailable: ' + guided.reason.message, 'error');
   paintOverview();
   paintPages();
@@ -66,6 +72,7 @@ function paintOverview() {
   box.querySelector('[data-learn="tour"]').addEventListener('click', () => setTour(true));
   box.querySelector('[data-learn="pages"]').addEventListener('click', () => emit('show-tab', 'pages'));
   box.querySelector('[data-learn="folders"]').addEventListener('click', () => graph.openView({ kind: 'folders' }));
+  paintGuideOverview(box);
 }
 
 const explainHint = () => `<p class="hint">To add explanations, connect the codetolife MCP server to Claude Code and ask:
@@ -83,13 +90,14 @@ async function explainDetails({ body, type, member }) {
   const explanation = learn.explanations[id];
   slot.innerHTML = `<div class="d-section explanation">
       <h3>What it does</h3>
-      ${explanation ? `<p class="explained">${escapeHtml(explanation.summary)}</p>
+      ${explanation ? `<p class="explained">${annotate(explanation.summary)}</p>
         ${explanation.stale ? '<p class="stale">⚠ The code has changed since this was written, so it may be out of date.</p>' : ''}`
         : `<p class="muted">${member ? 'No explanation yet. Its code is below.' : 'No explanation yet. Its members and code are below.'}</p>`}
       ${learn.ai ? `<div class="row"><button data-ai>${explanation ? 'Rewrite' : 'Explain'} with AI</button><span data-ai-status class="muted" role="status"></span></div>`
         : explanation ? '' : explainHint()}
     </div>
     <div data-packages></div>`;
+  guideDetails(slot, id);
   slot.querySelector('[data-ai]')?.addEventListener('click', async e => {
     const button = e.currentTarget;
     const status = slot.querySelector('[data-ai-status]');
@@ -117,37 +125,7 @@ async function explainDetails({ body, type, member }) {
 
 // ---------------------------------------------------------------- folders
 
-const FOLDER_NOTES = [
-  [/^controllers?$/, 'Controllers: classes whose public methods answer web requests. Each action pairs an address with the code that handles it.'],
-  [/^(pages|areas)$/, 'Razor Pages: each .cshtml page is a web address, with its code in the matching .cshtml.cs file.'],
-  [/^(views|shared|layouts?|partials|components)$/, 'Razor views and components: the HTML the app fills in and sends to the browser.'],
-  [/^(endpoints?|routes?|apis?)$/, 'The web addresses the app answers and the code that handles each one.'],
-  [/^(middlewares?|filters)$/, 'Code that runs on every request before (or after) it reaches a page, for example sign-in, logging or error handling.'],
-  [/^(models?|entities|domain|dtos?|viewmodels?|contracts|records)$/, 'The shapes of the data the app works with: classes with properties, and the rules that belong to them.'],
-  [/^(data|persistence|repositories|repository|db|database|dbcontexts?)$/, 'Data access: how the app reads and saves data, usually in a database through Entity Framework Core or Dapper.'],
-  [/^migrations$/, 'Database migrations: generated steps that change the database to match the code. Rarely edited by hand.'],
-  [/^(services?|application|handlers|commands|queries|features|usecases)$/, 'Business logic: the work the app does, kept apart from the web and the database.'],
-  [/^(infrastructure|clients?|integrations?|gateways?|adapters)$/, 'Code that talks to the outside world: other APIs, queues, files, email and the like.'],
-  [/^(config|configuration|settings|options)$/, 'Settings classes, bound from appsettings.json and environment variables.'],
-  [/^(extensions|helpers?|utils?|utilities|common|shared|core)$/, 'Shared helpers used in many places across the app.'],
-  [/^(validators?|validation)$/, 'Rules that check incoming data is valid before it is used.'],
-  [/^(mappings?|mappers?|profiles)$/, 'Code that copies data between similar classes, such as an entity and a DTO.'],
-  [/^(jobs|workers?|background|hostedservices)$/, 'Background work that runs on a schedule or alongside the web app.'],
-  [/^(hubs)$/, 'SignalR hubs: real-time messages between the server and the browser.'],
-  [/^(properties)$/, 'Project settings, such as launchSettings.json for running locally.'],
-  [/^(wwwroot|static|assets)$/, 'Static files (CSS, JavaScript, images) sent to the browser as they are.'],
-  [/^(tests?|.*\.tests?|.*\.(unit|integration)tests?|specs?|fakes|mocks|fixtures)$/, 'Test code and helpers. They check the app works, but do not run in the live service.'],
-  [/^(tools|scripts|build)$/, 'Scripts and tools for developers. They are not part of the running app.'],
-  [/^src$/, "The app's source code."],
-];
-
-function folderNote(dir) {
-  for (const part of (dir || '').split('/').filter(Boolean).reverse()) {
-    const match = FOLDER_NOTES.find(([pattern]) => pattern.test(part.toLowerCase()));
-    if (match) return match[1];
-  }
-  return dir ? null : 'Files at the top of the solution, usually the entry point and setup.';
-}
+const folderNote = dir => learn.folderNotes?.[dir] ?? null;
 
 /** Groups the code's folders into at most 14, merging the deepest into their parents until it fits on one screen. */
 function folderGroups() {
@@ -234,7 +212,7 @@ function showFolder(id) {
       <div class="ns">${g.files.size} file${g.files.size === 1 ? '' : 's'} · ${g.types.length} type${g.types.length === 1 ? '' : 's'}</div>
       <div class="actions"><button data-act="types" title="Switch to the types map with this folder's types highlighted">Show its types ⤵</button></div>
     </div>
-    <div class="d-section"><h3>What this folder is for</h3><p>${escapeHtml(folderNote(g.dir) ?? 'There is no description for this kind of folder. Its files are listed below.')}</p></div>
+    <div class="d-section"><h3>What this folder is for</h3><p>${annotate(folderNote(g.dir) ?? 'There is no description for this kind of folder. Its files are listed below.')}</p></div>
     ${uses ? `<div class="d-section"><h3>Uses code from</h3><ul class="rel">${uses}</ul></div>` : ''}
     ${usedBy ? `<div class="d-section"><h3>Used by</h3><ul class="rel">${usedBy}</ul></div>` : ''}
     <div class="d-section"><h3>Files</h3><ul class="rel folder-files">${[...byFile].sort((a, b) => a[0].localeCompare(b[0])).map(([file, types]) =>
@@ -288,12 +266,16 @@ function showTourStep(index) {
     <div class="tour-head"><b>Start here</b><span class="muted">Step ${index + 1} of ${steps.length} · ${roles[step.role]}</span><button class="icon" data-close title="Close">✕</button></div>
     <h3>${escapeHtml(step.name)}</h3>
     ${step.file ? `<div class="muted file">${escapeHtml(step.file)}</div>` : ''}
-    <p>${escapeHtml(step.reason)}</p>
+    <p>${annotate(step.reason)}</p>
     <div class="row"><button data-back ${index === 0 ? 'disabled' : ''}>← Back</button><button data-next class="primary">${index === steps.length - 1 ? 'Finish' : 'Next →'}</button></div>`;
   card.querySelector('[data-close]').addEventListener('click', () => setTour(false));
   card.querySelector('[data-back]').addEventListener('click', () => showTourStep(index - 1));
   card.querySelector('[data-next]').addEventListener('click', () => index === steps.length - 1 ? setTour(false) : showTourStep(index + 1));
   if (state.view.kind !== 'types') graph.goHome();
+  // Visiting a step counts as reading it.
+  saveTourStep(index);
+  setRead(step.typeId, true);
+  if (step.id !== step.typeId) setRead(step.id, true);
   emit('go', step.id);
   paintTour();
 }
@@ -338,7 +320,8 @@ const label = id => {
   return `${t?.name ?? '?'}.${m.name}${m.kind === 'method' ? '()' : ''}`;
 };
 
-function showFlow(route) {
+export function showFlow(route) {
+  if (guide.playback) stopPlayback(false);
   learn.flow = route.key;
   paintPages();
   if (state.view.kind !== 'types') graph.goHome();
@@ -363,13 +346,14 @@ function showFlow(route) {
       <p class="summary-text">What happens when someone visits this address, step by step.</p>
       ${route.fixedPath ? '' : '<p class="summary-text muted">Part of the address is worked out when the app runs, so it is shown as written in the code.</p>'}
       ${route.note ? `<p class="summary-text muted">${escapeHtml(route.note)}</p>` : ''}
+      <div class="actions"><button data-play class="primary" title="Walk through the request one step at a time, with the code for each step">▶ Play it step by step</button></div>
     </div>
     <div class="d-section"><ol class="flow">
       ${step('The browser asks for the page', `<p>It sends a ${escapeHtml(verb === '*' ? 'request' : verb + ' request')} for ${escapeHtml(route.path)}${verb === 'GET' || verb === '*' ? ', for example by following a link.' : ', usually by submitting a form or from code in the page.'}</p>`)}
-      ${learn.pages.before ? step('The server gets it ready', `<p>${escapeHtml(learn.pages.before)}</p>`) : ''}
+      ${learn.pages.before ? step('The server gets it ready', `<p>${annotate(learn.pages.before)}</p>`) : ''}
       ${step('The route matches the address', `<p>${go(route.handler, `${route.file}:${route.line}`)}</p><p class="muted">This is where the address is connected to the code that handles it.</p>`)}
       ${handler ? step(route.inline ? 'The code written inline runs' : 'The handler runs', `<p>${go(route.handler, label(route.handler))}</p>
-        <p class="${explained ? '' : 'muted'}">${escapeHtml(explained?.summary ?? (route.inline
+        <p class="${explained ? '' : 'muted'}">${annotate(explained?.summary ?? (route.inline
           ? `The handler is a lambda written where the route is mapped. ${route.steps.length ? 'The steps below are what it calls.' : "It doesn't call any other code in this project."}`
           : 'The handler builds the response: usually a page, sometimes a redirect or data.'))}</p>`) : ''}
       ${route.steps.length ? step('It calls other code', `<p class="muted">Indented calls are made by the one above.</p><ul class="flow-calls">${route.steps.map(s =>
@@ -381,13 +365,14 @@ function showFlow(route) {
     </ol></div>
     <div data-template-preview></div>`;
   body.querySelectorAll('[data-go]').forEach(a => a.addEventListener('click', () => emit('go', a.dataset.go)));
+  body.querySelector('[data-play]').addEventListener('click', () => playFlow(route));
   const preview = body.querySelector('[data-template-preview]');
   body.querySelectorAll('[data-template]').forEach(a => a.addEventListener('click', () => showTemplate(a.dataset.template, preview)));
   const first = route.templates.find(t => t.file);
   if (first) showTemplate(first.file, preview);
 }
 
-async function showTemplate(file, slot) {
+export async function showTemplate(file, slot) {
   slot.innerHTML = '<div class="d-section muted">Loading template…</div>';
   try {
     const source = await api('/template?file=' + encodeURIComponent(file));
